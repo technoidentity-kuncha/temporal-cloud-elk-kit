@@ -1,5 +1,5 @@
 """Python worker: Temporal Cloud via API key, Prometheus-format metrics on :METRICS_PORT/metrics,
-audit interceptor registered once for all activities."""
+archive-on-close interceptor registered once for all workflows."""
 
 import asyncio
 import logging
@@ -10,7 +10,6 @@ from temporalio.runtime import PrometheusConfig, Runtime, TelemetryConfig
 from temporalio.worker import Worker
 
 from orders.activities import (
-    ProjectionActivities,
     charge_payment,
     notify_customer,
     reserve_inventory,
@@ -18,7 +17,6 @@ from orders.activities import (
     validate_order,
 )
 from orders.archive_interceptor import ArchiveOnCloseInterceptor
-from orders.audit_interceptor import AuditInterceptor
 from orders.workflows import OrderWorkflow, ShipmentWorkflow
 
 
@@ -52,8 +50,6 @@ async def main() -> None:
         runtime=runtime,
     )
 
-    dsn = env("PG_DSN", "postgresql://temporal:temporal@localhost:55432/audit")
-    projection = ProjectionActivities(dsn)
     task_queue = env("TASK_QUEUE", "orders-python")
 
     worker = Worker(
@@ -66,9 +62,8 @@ async def main() -> None:
             charge_payment,
             schedule_shipment,
             notify_customer,
-            projection.record_stage,
         ],
-        interceptors=[AuditInterceptor(dsn, frozenset({"RecordStage"})), ArchiveOnCloseInterceptor()],
+        interceptors=[ArchiveOnCloseInterceptor()],
         # Deliberately small so slot exhaustion is visible on the dashboard under load.
         max_concurrent_activities=int(env("MAX_ACTIVITY_SLOTS", "20")),
     )

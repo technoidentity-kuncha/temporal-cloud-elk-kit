@@ -45,19 +45,25 @@ class ArchiveOnCloseInterceptorTest {
     }
   }
 
-  static class Activities extends OrderWorkflowTest.HappyActivities {
+  /** Deterministic activities: everything succeeds, unless the payment is set to be declined. */
+  static class Activities implements OrderActivities {
     final boolean decline;
 
     Activities(boolean decline) {
       this.decline = decline;
     }
 
+    @Override public void validateOrder(String id) {}
+    @Override public void reserveInventory(String id) {}
+    @Override public String scheduleShipment(String id) { return "ship-" + id; }
+    @Override public void notifyCustomer(String id, String message) {}
+
     @Override
     public String chargePayment(String id) {
       if (decline) {
         throw ApplicationFailure.newNonRetryableFailure("card declined", "PaymentDeclined");
       }
-      return super.chargePayment(id);
+      return "txn-" + id;
     }
   }
 
@@ -79,7 +85,7 @@ class ArchiveOnCloseInterceptorTest {
     env = TestWorkflowEnvironment.newInstance(TestEnvironmentOptions.newBuilder().setWorkerFactoryOptions(f.build()).build());
     Worker w = env.newWorker(QUEUE);
     w.registerWorkflowImplementationTypes(OrderWorkflowImpl.class, ShipmentWorkflowImpl.class);
-    w.registerActivitiesImplementations(new Activities(decline), (ProjectionActivities) (e, wf, s, st, q) -> {});
+    w.registerActivitiesImplementations(new Activities(decline));
     env.newWorker(ARCHIVER_QUEUE).registerWorkflowImplementationTypes(FakeArchiverImpl.class);
     env.start();
     return env;

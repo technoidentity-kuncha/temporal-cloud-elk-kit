@@ -2,9 +2,7 @@
 
 import asyncio
 import random
-from dataclasses import dataclass
 
-import psycopg
 from temporalio import activity
 from temporalio.exceptions import ApplicationError
 
@@ -43,34 +41,3 @@ async def schedule_shipment(order_id: str) -> str:
 @activity.defn(name="NotifyCustomer")
 async def notify_customer(order_id: str, message: str) -> None:
     await _work(10, 80)
-
-
-@dataclass
-class StageRecord:
-    entity_id: str
-    workflow_id: str
-    stage: str
-    status: str
-    stage_seq: int
-
-
-class ProjectionActivities:
-    """Option C: explicit business projection, an idempotent upsert guarded by stage_seq."""
-
-    UPSERT = """
-        INSERT INTO business_projection (entity_id, workflow_id, stage, status, stage_seq, updated_at)
-        VALUES (%s, %s, %s, %s, %s, now())
-        ON CONFLICT (entity_id) DO UPDATE SET workflow_id = EXCLUDED.workflow_id, stage = EXCLUDED.stage,
-            status = EXCLUDED.status, stage_seq = EXCLUDED.stage_seq, updated_at = now()
-        WHERE business_projection.stage_seq <= EXCLUDED.stage_seq
-    """
-
-    def __init__(self, dsn: str) -> None:
-        self.dsn = dsn
-
-    @activity.defn(name="RecordStage")
-    async def record_stage(self, rec: StageRecord) -> None:
-        async with await psycopg.AsyncConnection.connect(self.dsn, connect_timeout=2) as conn:
-            await conn.execute(
-                self.UPSERT, (rec.entity_id, rec.workflow_id, rec.stage, rec.status, rec.stage_seq)
-            )

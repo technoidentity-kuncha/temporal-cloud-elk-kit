@@ -15,10 +15,10 @@ import org.slf4j.Logger;
 /**
  * Option E: when any workflow's code finishes (completed, failed, cancelled or continue-as-new),
  * start the history archiver as an ABANDONed child. The archiver waits for this run to close, then
- * stores its complete history (close event included) in Postgres, seconds after close.
+ * fetches its history (close event included) for the Postgres loader.
  *
- * <p>No per-workflow code: registered once on the WorkerFactory. Never changes the workflow's
- * outcome: errors starting the archiver are logged and swallowed, and the original result or
+ * <p>Registered once on the WorkerFactory. The parent waits for child-start confirmation.
+ * Caught start errors are logged and swallowed, and the original result or
  * exception is returned unchanged. Terminated / timed-out runs never reach this code; a periodic
  * poll sweep (history_loader.py poll) covers them.
  *

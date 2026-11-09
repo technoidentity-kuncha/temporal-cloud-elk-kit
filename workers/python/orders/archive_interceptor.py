@@ -1,8 +1,8 @@
 """Option E (Python side): when any workflow's code finishes, start the history archiver as an
-ABANDONed child so the complete history lands in Postgres seconds after the run closes.
+ABANDONed child that fetches the closed run's history for the Postgres loader.
 
-No per-workflow code: registered once on the Worker. Never fails the workflow: any error starting
-the archiver is logged and swallowed (the periodic poll sweep catches what was missed).
+Registered once on the Worker. The parent waits for child-start confirmation; caught start
+errors are logged. The periodic poll sweep covers missed runs.
 """
 
 import asyncio

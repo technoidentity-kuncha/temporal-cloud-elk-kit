@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Option E: archive each workflow's complete history into Postgres seconds after it closes.
+"""Option E: fetch a closed workflow's history and project its events into Postgres.
 
 Every worker registers an "archive on close" interceptor (Java: ArchiveOnCloseInterceptor,
 Python: orders/archive_interceptor.py). When a workflow's code finishes, the interceptor starts
@@ -9,7 +9,8 @@ this HistoryArchiverWorkflow as an ABANDONed child, then lets the parent close. 
   2. fetches the complete history, close event included,
   3. upserts it into workflow_execution / workflow_history_event (same loader code as options A/D).
 
-It runs as its own execution with its own retries, so nothing here can fail the business workflow.
+Database writes run in the child with their own retries. The parent waits for child-start
+confirmation, not archive completion. Payload conversion is subject to the loader's limits.
 Runs that never execute workflow code at the end (terminated, execution timeout) are not covered:
 keep `history_loader.py poll` as a periodic sweep for those.
 

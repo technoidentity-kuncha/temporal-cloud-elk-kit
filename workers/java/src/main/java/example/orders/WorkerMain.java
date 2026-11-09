@@ -3,10 +3,7 @@ package example.orders;
 import com.sun.net.httpserver.HttpServer;
 import com.uber.m3.tally.RootScopeBuilder;
 import com.uber.m3.tally.Scope;
-import com.zaxxer.hikari.HikariConfig;
-import com.zaxxer.hikari.HikariDataSource;
 import example.orders.audit.ArchiveOnCloseInterceptor;
-import example.orders.audit.AuditWorkerInterceptor;
 import io.micrometer.prometheusmetrics.PrometheusConfig;
 import io.micrometer.prometheusmetrics.PrometheusMeterRegistry;
 import io.temporal.client.WorkflowClient;
@@ -21,12 +18,11 @@ import io.temporal.worker.WorkerOptions;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
-import java.util.Set;
 
 /**
  * Worker entrypoint. Connects to Temporal Cloud with an API key, exposes SDK metrics in Prometheus
  * text format on :METRICS_PORT/metrics (scraped by Metricbeat → Elasticsearch), and registers the
- * audit interceptor.
+ * archive-on-close interceptor.
  */
 public class WorkerMain {
 
@@ -62,23 +58,12 @@ public class WorkerMain {
         WorkflowClient.newInstance(
             service, WorkflowClientOptions.newBuilder().setNamespace(namespace).build());
 
-    // 3. Audit store.
-    HikariConfig pg = new HikariConfig();
-    pg.setJdbcUrl(env("PG_URL", "jdbc:postgresql://localhost:55432/audit"));
-    pg.setUsername(env("PG_USER", "temporal"));
-    pg.setPassword(env("PG_PASSWORD", "temporal"));
-    pg.setMaximumPoolSize(10);
-    pg.setConnectionTimeout(2000);
-    pg.setInitializationFailTimeout(-1); // start even if Postgres is down: audit is non-fatal
-    HikariDataSource dataSource = new HikariDataSource(pg);
-
-    // 4. Worker with the audit interceptor. Projection writes are excluded from the step audit.
+    // 3. Worker. The close interceptor starts an independent history archiver.
     WorkerFactory factory =
         WorkerFactory.newInstance(
             client,
             WorkerFactoryOptions.newBuilder()
                 .setWorkerInterceptors(
-                    new AuditWorkerInterceptor(dataSource, Set.of("RecordStage"), registry),
                     new ArchiveOnCloseInterceptor(env("ARCHIVER_TASK_QUEUE", "history-archiver")))
                 .build());
     Worker worker =
@@ -90,8 +75,7 @@ public class WorkerMain {
                     Integer.parseInt(env("MAX_ACTIVITY_SLOTS", "20")))
                 .build());
     worker.registerWorkflowImplementationTypes(OrderWorkflowImpl.class, ShipmentWorkflowImpl.class);
-    worker.registerActivitiesImplementations(
-        new OrderActivitiesImpl(), new ProjectionActivitiesImpl(dataSource));
+    worker.registerActivitiesImplementations(new OrderActivitiesImpl());
 
     factory.start();
     System.out.printf(

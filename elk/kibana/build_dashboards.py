@@ -356,8 +356,6 @@ def build():
                                [("Hits", "sum", r("temporal_sticky_cache_hit")), ("Misses", "sum", r("temporal_sticky_cache_miss"))], kql=SDK, chart="bar"))
     add("sdk_threads", lens("Java workflow threads", "temporal_workflow_active_thread_count (Java only).",
                             [("Threads", "max", g("temporal_workflow_active_thread_count"))], kql=SDK + " and prometheus.labels.sdk : java"))
-    add("sdk_audit", lens("Audit writes / failures (sample interceptor)", "audit_writes_total and audit_write_failures_total from the T2 audit interceptor, count per interval.",
-                          [("Writes", "sum", r("audit_writes")), ("Write failures", "sum", r("audit_write_failures"))], kql=SDK, chart="bar"))
 
     # ---- Cloud detail
     add("cl_open_t", lens("Open workflows over time", "temporal_cloud_v1_namespace_open_workflows (gauge).",
@@ -410,7 +408,7 @@ def build():
                 [(v["sdk_poll_lat"], 16), (v["sdk_wft_exec"], 16), (v["sdk_replay"], 16)],
                 [(v["sdk_wft_fail"], 16), (v["ov_act_fail"], 16), (v["sdk_act_e2e"], 16)],
                 [(v["sdk_slots_used"], 16), (v["sdk_pollers"], 16), (v["sdk_sticky"], 16)],
-                [(v["sdk_sticky_hit"], 16), (v["sdk_threads"], 16), (v["sdk_audit"], 16)],
+                [(v["sdk_sticky_hit"], 24), (v["sdk_threads"], 24)],
             ],
             common_ctl,
         ),

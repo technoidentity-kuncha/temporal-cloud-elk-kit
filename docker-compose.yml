@@ -2,7 +2,6 @@ name: temporal-cloud-elk-kit
 
 # Local demo stack. Elasticsearch/Kibana security is disabled for convenience; enable it in production.
 
-
 services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.19.24
@@ -65,20 +64,14 @@ services:
     build: ./workers/java
     env_file: .env
     environment:
-      PG_URL: jdbc:postgresql://postgres:5432/audit
       TASK_QUEUE: orders-java
-    depends_on:
-      postgres: { condition: service_healthy }
     profiles: ["workers"]
 
   python-worker:
     build: { context: ., dockerfile: workers/python/Dockerfile }
     env_file: .env
     environment:
-      PG_DSN: postgresql://temporal:temporal@postgres:5432/audit
       TASK_QUEUE: orders-python
-    depends_on:
-      postgres: { condition: service_healthy }
     profiles: ["workers"]
 
   history-archiver:
@@ -91,6 +84,17 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     profiles: ["workers"]
+
+  history-sweep:
+    build: { context: ., dockerfile: workers/python/Dockerfile }
+    env_file: .env
+    environment:
+      PG_DSN: postgresql://temporal:temporal@postgres:5432/audit
+    working_dir: /app/audit
+    command: ["python", "sweep_schedule.py", "worker"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["sweep"]
 
   load:
     build: { context: ., dockerfile: workers/python/Dockerfile }

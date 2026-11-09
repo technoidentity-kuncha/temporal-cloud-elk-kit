@@ -60,6 +60,15 @@ The data view uses `metricbeat-*`. Change `data_view()` in [build_dashboards.py]
 python3 elk/kibana/build_dashboards.py
 ```
 
+<details>
+<summary>Example: Cloud namespace health dashboard</summary>
+
+![Cloud namespace health dashboard with sample workload](img/dashboard-cloud.png)
+
+Example workload; values vary. Empty error panels can mean no failures occurred.
+
+</details>
+
 ## Checks and troubleshooting
 
 In Discover, select **Last 15 minutes** and check both `source_kind : "temporal_sdk"` and `source_kind : "temporal_cloud"`. Allow several minutes for Cloud data. Open **Worker capacity overview**, **SDK workers (Java + Python)**, and **Cloud namespace health**; all panels should render.
@@ -120,4 +129,4 @@ After workflows finish:
 docker compose --profile workers --profile load down
 ```
 
-This stops workers, not Cloud executions. Elastic authentication is disabled in the demo. Removing the Postgres container can delete its data; configure persistent storage before retaining records. The history sweep must be scheduled separately.
+This stops workers, not Cloud executions. Elastic authentication is disabled in the demo. Removing the Postgres container can delete its data; configure persistent storage before retaining records. The history sweep uses the optional `sweep` profile and requires [separate Schedule registration](../audit/README.md#3-temporal-schedule--sweep-workflow--postgres-d).

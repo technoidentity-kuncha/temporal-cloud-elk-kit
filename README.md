@@ -9,4 +9,6 @@ Java and Python examples for Elastic observability and workflow-history archival
 
 To run the example stack, see [local setup](elk/README.md#local-setup).
 
-[MIT license](LICENSE).
+Reference examples, not a production deployment. See [audit implementation status](audit/README.md#recommendation) before adopting the ingestion code.
+
+[Handover release v0.1.0](https://github.com/technoidentity-kuncha/temporal-cloud-elk-kit/releases/tag/v0.1.0) · [Verification checks](.github/workflows/verify.yml) · [MIT license](LICENSE).
