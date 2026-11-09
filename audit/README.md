@@ -1,20 +1,22 @@
 # Workflow history: retention and query access
 
-**Persist critical business outcomes in the relevant application database for immediate querying.** This guide covers closed workflow histories.
+Choose a history-retention approach, then provision, integrate, configure, and verify it in your environment. Linked code provides implementation references.
+
+**Critical business outcomes belong in the application database for immediate querying.**
 
 ## Recommendation
 
-- **Prefer Cloud History Export → S3** for long-term retention independent of application workers. Import into Postgres when SQL access is needed.
+- **Prefer Cloud History Export → S3** for long-term retention independent of application workers. Postgres ingestion is optional when SQL access is needed.
 - **Use archive-on-close + sweep (E + D)** for prompt Postgres access. This is our preferred application-owned alternative.
-- **Use sweep alone (D)** when periodic updates are sufficient. S3 export can accompany either approach as the raw-history copy.
+- **Use sweep alone (D)** when periodic updates are sufficient. S3 export can accompany either application-owned approach as the raw-history archive.
 
-**Implementation status:** Temporal manages Cloud export. Our S3-to-Postgres importer is experimental: reset-run identity needs correction and real Cloud exports have not been validated. No SQS consumer is included. E + D and D are runnable examples; end-to-end Cloud/database delivery still needs client validation.
+**Implementation status:** reference implementations with [local validation](#validation). No continuous S3 consumer is included.
 
 ```mermaid
 flowchart LR
     cloud["Closed Temporal histories"] --> export["A: managed export"]
     export --> s3["S3: raw retention"]
-    s3 --> importer["Importer"] --> pg["Postgres"]
+    s3 -->|"Optional SQL ingestion"| importer["Importer"] --> pg["Postgres"]
     hook["E: close interceptor"] --> archiver["Archiver"]
     archiver --> api["Temporal history API"] --> pg
     sweep["D: scheduled sweep"] --> api
@@ -22,129 +24,83 @@ flowchart LR
 
 ## 1. Cloud History Export → S3 → Postgres (A)
 
-**Best for:** durable retention without worker changes; raw files remain available for reprocessing.
+**Fits:** durable retention without application-worker changes; optional SQL access through a separate ingestion pipeline.
 
-### Set it up
+### Implementing this approach
 
-1. Create an S3 bucket in the namespace's AWS region, with appropriate encryption and retention. In Temporal Cloud, use **Export → Configure** and the guided CloudFormation role setup. Verify access and create the sink. [AWS export instructions](https://docs.temporal.io/cloud/export/aws-export-s3).
-2. Close a test workflow and inspect its exported history. Validate the [importer](history_loader.py) against a bounded prefix using S3 read/list permissions and decrypt access where required. Resolve the sample limitations before production ingestion.
-3. For continuous ingestion, build S3 `ObjectCreated` → SQS standard queue → consumer. Commit rows before acknowledging messages; add retries, a dead-letter queue, and object reconciliation. [AWS notification setup](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ways-to-add-notification-config-to-bucket.html).
+- **Provision:** an S3 bucket and export access role following [Temporal's S3 configuration](https://docs.temporal.io/cloud/export/aws-export-s3). Add Postgres only if SQL access is needed; adapt the [sample schema](schema.sql) to your query requirements.
+- **Integrate:** enable History Export for the namespace and destination bucket. For SQL ingestion, use [iter_export_blobs(), load_export(), and store()](history_loader.py) as references for reading protobuf batches and persisting execution/event records.
+- **Configure:** bucket region, encryption, retention, and access policies. An optional importer needs S3 read/list access, decrypt permissions where applicable, and database credentials; it does not require Temporal mTLS.
+- **Verify:** close representative workflows and confirm their histories arrive in S3. For SQL ingestion, compare Run IDs, event counts, and terminal events with the source histories; ingest the same batch twice to check duplicate handling. See [ingestion assertions](tests/e2e/test_archival.py).
 
-For experimental batch import, apply the [schema](schema.sql) to a disposable evaluation database and set `PG_DSN` and AWS credentials. This importer reads S3 objects; it does not use Temporal API keys or mTLS:
+For continuous ingestion, extend the batch pattern with [S3 notifications](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ways-to-add-notification-config-to-bucket.html) → SQS → consumer. Commit before acknowledging messages; add retries, a dead-letter queue, and object reconciliation.
 
-```bash
-python -m pip install -r workers/python/requirements.txt boto3
-python audit/history_loader.py export \
-  --path 's3://<bucket>/temporal-workflow-history/export/<namespace>/<year>/<month>/<day>/'
-```
+### Tradeoffs
 
-The sample reads protobuf batches from S3/local files and writes Postgres. It rescans the prefix; there is no object checkpoint or continuous consumer.
-
-### Cons
-
-- **Latency:** hourly exports may take up to 24 hours to arrive.
-- **Operations:** delivery is at least once. Deduplicate imports and monitor export health, ingestion lag, and failed objects.
-- **Cost:** export actions, storage, and ingestion add cost. Temporal manages export; your team owns the importer and database.
-
-Reference: [export behavior and monitoring](https://docs.temporal.io/cloud/export).
+- Export runs hourly; closed histories may take up to 24 hours to arrive. Delivery is at least once. [Export behavior](https://docs.temporal.io/cloud/export).
+- Raw histories remain available for reprocessing; export, storage, and optional SQL ingestion add cost and operational responsibilities.
+- The [batch importer](history_loader.py) rescans the prefix without an object checkpoint. Duplicate event keys are ignored; object tracking and continuous consumption remain deployment responsibilities.
 
 ## 2. Archive-on-close + scheduled sweep → Postgres (E + D)
 
-**Best for:** prompt SQL access without archive calls in each workflow.
+**Fits:** prompt SQL access without archive calls inside each workflow's business logic.
 
-The interceptor starts an archiver child before parent closure. The child survives closure, waits for the closed run, then fetches its history. The sweep catches missed runs, including termination and execution timeout.
+### Implementing this approach
 
-### Set it up
+- **Provision:** Postgres storage and a dedicated archiver Worker with history API access and database write permissions. [archiver_worker.py](archiver_worker.py) shows registration on `history-archiver`; [archiver.py](archiver.py) waits for source closure, fetches the actual Run ID's history, and persists it.
+- **Integrate:** register the [Java](../workers/java/src/main/java/example/orders/audit/ArchiveOnCloseInterceptor.java) or [Python](../workers/python/orders/archive_interceptor.py) interceptor on application workers. It starts an `ABANDON` child that survives parent closure. Registration examples: [Java](../workers/java/src/main/java/example/orders/WorkerMain.java), [Spring Boot](../workers/spring-boot/src/main/java/example/orders/spring/TemporalConfiguration.java), [Python](../workers/python/worker.py). Add [the recovery sweep](#3-temporal-schedule--sweep-workflow--postgres-d).
+- **Configure:** the namespace and [API-key/mTLS connection](../elk/README.md#connection-configuration), matching archiver task queues, and `PG_DSN`. Set retry budgets within source-history retention. Preserve Java `getVersion()` / Python `patched()` guards through rollout and rollback.
+- **Verify:** complete, fail, cancel, and Continue-As-New representative workflows; confirm each closed Run ID has its complete event set in Postgres. In a test environment, interrupt database access to verify retries, then confirm the sweep recovers terminated/timed-out runs. See [lifecycle and recovery tests](tests/e2e/test_archival.py).
 
-1. Install the [Python dependencies](../workers/python/requirements.txt), apply the [schema](schema.sql), and deploy [archiver_worker.py](archiver_worker.py) on `history-archiver` with `PG_DSN` and the shared [Temporal connection configuration](../elk/README.md#connection-configuration). API keys and mTLS are alternatives for E/D; neither is an Elastic credential.
-2. Register the [Java interceptor](../workers/java/src/main/java/example/orders/audit/ArchiveOnCloseInterceptor.java) or [Python interceptor](../workers/python/orders/archive_interceptor.py) on every relevant worker, alongside existing interceptors. Registration examples: [Java](../workers/java/src/main/java/example/orders/WorkerMain.java), [Spring Boot](../workers/spring-boot/src/main/java/example/orders/spring/TemporalConfiguration.java), [Python](../workers/python/worker.py). All use the same Python archiver.
-3. Enable the [hourly sweep](#3-temporal-schedule--sweep-workflow--postgres-d). The close hook alone is insufficient.
+Temporal references: interceptors ([Java](https://docs.temporal.io/develop/java/workers/interceptors), [Python](https://docs.temporal.io/develop/python/workers/interceptors)), child lifecycle ([Java](https://docs.temporal.io/develop/java/workflows/child-workflows), [Python](https://docs.temporal.io/develop/python/workflows/child-workflows)), and patching ([Java](https://docs.temporal.io/develop/java/workflows/versioning), [Python](https://docs.temporal.io/develop/python/workflows/versioning)).
 
-```bash
-python audit/archiver_worker.py
-```
+### Tradeoffs
 
-Implementation: [archive activity and child workflow](archiver.py). The archive-on-close pattern is repository code. Official SDK references: interceptors ([Java](https://docs.temporal.io/develop/java/workers/interceptors), [Python](https://docs.temporal.io/develop/python/workers/interceptors)) and child-workflow lifecycle/`ABANDON` ([Java](https://docs.temporal.io/develop/java/workflows/child-workflows), [Python](https://docs.temporal.io/develop/python/workflows/child-workflows)).
-
-### Cons
-
-- **Workflow impact:** adds a child execution and archive activity. The parent waits for child-start confirmation. Measure close latency and preserve replay/version markers during rollout and rollback ([Java patching](https://docs.temporal.io/develop/java/workflows/versioning), [Python patching](https://docs.temporal.io/develop/python/workflows/versioning)).
-- **Coverage:** termination, execution timeout, cancellation, or start failures can bypass the hook. Retain the sweep.
-- **Operations:** run the archiver and sweep workers. Archiving retries for up to seven days, but recovery must finish before retention expires. Sweeps also reread histories already archived.
+- Adds a child execution and Activity. The parent waits for child-start confirmation, not database delivery; this affects close latency.
+- Termination and execution timeout bypass the closing code. Cancellation or child-start failures can also leave gaps; the sweep remains necessary.
+- [Archiving retries](archiver.py) have a seven-day budget. Recovery must still finish before source-history retention expires. Sweeps reread histories already archived.
 
 ## 3. Temporal Schedule → sweep workflow → Postgres (D)
 
-**Best for:** periodic SQL updates without changing business workers; also E's recovery path.
+**Fits:** periodic SQL updates without changing application workers; also provides E's recovery path.
 
-### Code and setup
+### Implementing this approach
 
-[history_loader.py](history_loader.py) contains the sweep: `load_poll()` reads the checkpoint; `poll_once()` lists closed runs through [Visibility](https://docs.temporal.io/visibility), fetches histories by actual run ID, and writes Postgres.
+- **Provision:** a sweep Worker and [Postgres storage/checkpoint](schema.sql) for each namespace. Grant the Schedule creator Schedule permissions, and the Worker listing/history access and database credentials.
+- **Integrate:** create a [Temporal Schedule](sweep_schedule.py) targeting the sweep Worker's queue; register [HistorySweepWorkflow](sweep_workflow.py) and [sweep_closed_histories()](sweep_activity.py). The Activity invokes the [collector](history_loader.py), heartbeats, and stops its subprocess on cancellation. Schedule creation is separate from Worker deployment.
+- **Configure:** the namespace, [connection profile](../elk/README.md#connection-configuration), `PG_DSN`, matching task queue, interval, and overlap policy. The reference collects hourly with `SKIP` and resumes from its checkpoint with a five-minute query overlap; the initial lookback is one hour. Keep credentials in Worker configuration; coordinate wider backfills within history retention.
+- **Verify:** trigger a sweep and compare stored histories with closed runs in [Visibility](https://docs.temporal.io/visibility). Confirm the checkpoint advances only after a successful pass, remains unchanged on failure, and supports duplicate-safe retries. See [Schedule and checkpoint tests](tests/e2e/test_archival.py).
 
-```mermaid
-flowchart LR
-    schedule["Hourly Temporal Schedule"] --> workflow["HistorySweepWorkflow"]
-    workflow --> activity["SweepClosedHistories Activity"]
-    activity --> loader["One loader pass"] --> db["Postgres + checkpoint"]
-```
+[Temporal Python Schedules](https://docs.temporal.io/develop/python/workflows/schedules) · [Overlap policies](https://python.temporal.io/temporalio.client.ScheduleOverlapPolicy.html).
 
-The [Schedule adapter](sweep_schedule.py) starts the [workflow](sweep_workflow.py). Its [Activity](sweep_activity.py) runs the existing loader with retries, heartbeats, and cancellation cleanup. Connection credentials stay in the worker environment or mounted profile/certificate files.
+### Tradeoffs
 
-1. Deploy with the [Python dependencies](../workers/python/requirements.txt), [schema](schema.sql), [connection configuration](../elk/README.md#connection-configuration), and `PG_DSN`. Scripts do not read `.env`.
-2. Start the worker, then create the Schedule once. Registration needs Schedule permissions; existing IDs are not overwritten.
-3. Keep one Schedule per namespace/database pair. `SKIP` prevents overlapping runs from that Schedule. Pause it and wait for active collection to finish before manual backfills.
+- Query freshness depends on scheduling, visibility delay, collection time, and Worker availability.
+- [Activity attempts](sweep_workflow.py) have a 20-minute limit, at most three attempts, and a 55-minute overall budget; workload size determines suitable settings.
+- Five concurrent history fetches in [poll_once()](history_loader.py) are not a rate limiter. `SKIP` prevents overlap for that Schedule, not other collectors or duplicate Activity execution.
+- A checkpoint records progress, not completeness. Late visibility and prolonged outages can leave runs outside the recovery window.
 
-Commands from the repository root:
+## Storage considerations
 
-```bash
-# Long-running service; separate one-time registration.
-python audit/sweep_schedule.py worker
-python audit/sweep_schedule.py create-schedule
-```
+The [Postgres schema](schema.sql) illustrates a query model, not a production-ready schema recommendation:
 
-With Compose, keep the `COMPOSE_FILE` selection in `.env` from the [ELK setup](../elk/README.md#local-setup), so profile/certificate mounts also apply to the sweep:
+- `workflow_execution`: one execution summary per Run ID.
+- `workflow_history_event`: event attributes as JSONB, keyed by Run ID and Event ID.
+- `loader_checkpoint`: sweep progress.
 
-```bash
-docker compose --profile sweep up -d --build history-sweep
-docker compose --profile sweep run --rm history-sweep \
-  python sweep_schedule.py create-schedule
-```
-
-Starting Compose does not register the Schedule. For backfills within available retention:
-
-```bash
-python audit/history_loader.py poll --since 7d --overlap 300
-```
-
-The first scheduled pass looks back one hour unless a checkpoint exists. Successful passes advance it; a five-minute overlap covers recent visibility delays. Periodically reconcile a wider window and alert on failed sweeps or missing runs.
-
-### Cons
-
-- **Latency:** hourly scheduling plus visibility/processing delay. A worker must remain available.
-- **Recovery:** attempts time out after 20 minutes, with at most three attempts within 55 minutes. Tune for workload size; later runs resume from the checkpoint.
-- **Load/concurrency:** five concurrent fetches are not a rate limiter. Add throttling/batching for large backfills. `SKIP` does not coordinate other pollers or guarantee exactly-once Activity execution.
-- **Retention:** outages or late visibility records can exceed the recovery window. A checkpoint does not prove completeness.
-
-References: [Python Schedules](https://docs.temporal.io/develop/python/workflows/schedules) · [Overlap policies](https://python.temporal.io/temporalio.client.ScheduleOverlapPolicy.html) · [Schedule tests](tests/test_sweep_schedule.py).
-
-## Verify an archived run
-
-```sql
-SELECT json_build_object('workflow_id', workflow_id, 'status', status,
-                         'history_length', history_length)
-FROM workflow_execution WHERE run_id = '<run-id>';
-```
-
-Illustrative result:
-
-```json
-{"workflow_id": "order-123", "status": "COMPLETED", "history_length": 42}
-```
-
-Event count should match `history_length`; a completed run ends with `WORKFLOW_EXECUTION_COMPLETED`. Repeated ingestion must not add duplicate events.
+[history_rows() and store()](history_loader.py) map and persist histories for all three paths. A production design needs namespace-aware identity, payload handling, reprocessing rules, and durable database storage. Raw S3 histories remain the recommended archival copy.
 
 ## Sample limits and validation
 
-- **Payloads:** unsupported/encrypted payloads become placeholders. Postgres is not a lossless backup; retain raw histories and necessary codec/key access.
-- **Identity:** export's `originalExecutionRunId` fallback can collide after reset; E/D use actual run IDs. Use separate storage per namespace because keys/checkpoints lack namespace identity.
-- **Reprocessing:** duplicate event keys are ignored. Reloading does not correct existing payloads.
-- **Validation:** test completion, failure, cancellation, timeout, termination, Continue-As-New, reset, replay, and database recovery. [Java tests](../workers/java/src/test/java/example/orders/ArchiveOnCloseInterceptorTest.java) and Schedule tests use stand-ins; they do not prove end-to-end database delivery.
+- **Payloads:** [decode_payloads()](history_loader.py) replaces unsupported/encrypted payloads with encoding/size placeholders. Postgres cannot reconstruct those payloads; retaining raw histories and required codecs/keys is necessary.
+- **Identity:** [history_rows()](history_loader.py) uses actual Run IDs for E/D and the latest reset event's `new_run_id` for reset exports ([Temporal event definition](https://github.com/temporalio/api/blob/master/temporal/api/history/v1/message.proto)). Storage must remain separate per namespace.
+- **Reprocessing:** [UPSERT_EVENT](history_loader.py) ignores duplicate event keys. Improving a decoder and rerunning ingestion will not replace existing payloads; correction requires an explicit update/rebuild strategy.
+
+Operational checks include collection lag, failed archives/sweeps, checkpoint age, reconciliation gaps, and recovery time remaining before source retention expires.
+
+### Validation
+
+- **Tested:** real Temporal and Postgres with Java/Python interceptors, packaged Spring Boot, and scheduled sweeps. Scenarios include completion, failure, cancellation, timeout, termination, Continue-As-New, reset, replay, duplicate ingestion, payload handling, and database/checkpoint recovery.
+- **Assertions:** stored event IDs/types, history lengths, and close status match source histories. S3 reads use Moto; export batches contain real server histories.
+
+[Tests](tests/e2e/test_archival.py) · [CI](../.github/workflows/verify.yml) · [Run instructions (runner docstring)](../scripts/test_archival_e2e.py).

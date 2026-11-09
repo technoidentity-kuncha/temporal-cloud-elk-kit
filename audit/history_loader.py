@@ -9,8 +9,8 @@
       python history_loader.py poll --since 2h            # one pass
       python history_loader.py poll --interval 60         # keep going, checkpointed in loader_checkpoint
 
-Every row is an idempotent upsert keyed by (run_id, event_id), so re-delivered export files,
-overlapping poll windows and re-runs are all safe.
+Within one namespace's storage, duplicate (run_id, event_id) keys are ignored across export
+redelivery, overlapping poll windows and re-runs. Existing event attributes are not replaced.
 """
 
 import argparse
@@ -25,6 +25,7 @@ from datetime import datetime, timedelta, timezone
 import psycopg
 from google.protobuf.json_format import MessageToDict
 from temporalio.api.export.v1 import WorkflowExecutions
+from temporalio.api.enums.v1 import WorkflowTaskFailedCause
 from temporalio.api.history.v1 import History
 from temporalio.client import Client
 from temporalio.envconfig import ClientConfig
@@ -69,13 +70,29 @@ def decode_payloads(node):
 # ------------------------------------------------------------------ history -> rows
 def history_rows(history: History, run_id_hint: str | None = None):
     """Return (execution_row, event_rows) for one closed history."""
-    events = MessageToDict(history)["events"]
+    events = MessageToDict(history).get("events", [])
+    if not events or "workflowExecutionStartedEventAttributes" not in events[0]:
+        raise ValueError("Expected a complete history beginning with WorkflowExecutionStarted")
     first, last = events[0], events[-1]
     started = first["workflowExecutionStartedEventAttributes"]
     workflow_id = started.get("workflowId")
-    # Export files carry no run id. original_execution_run_id is the run id of a normal run, but is
-    # preserved across a workflow *reset*, so a reset run shares it with the run it was reset from.
-    run_id = run_id_hint or started.get("originalExecutionRunId")
+    # Export batches carry only history. Resets preserve the start event's original run ID;
+    # the last RESET_WORKFLOW task failure identifies the current branch instead.
+    # API callers supply an authoritative run ID directly.
+    run_id = started.get("originalExecutionRunId")
+    if run_id_hint:
+        run_id = run_id_hint
+    else:
+        for event in history.events:
+            failed = event.workflow_task_failed_event_attributes
+            if failed.cause == WorkflowTaskFailedCause.WORKFLOW_TASK_FAILED_CAUSE_RESET_WORKFLOW:
+                if not failed.new_run_id:
+                    raise ValueError("Reset history has no new_run_id; supply the actual run ID")
+                run_id = failed.new_run_id
+    if not run_id or not workflow_id:
+        raise ValueError("History is missing workflow/run identity")
+    if last.get("eventType", "").removeprefix("EVENT_TYPE_") not in CLOSE_STATUS:
+        raise ValueError("Expected a closed history including its terminal event")
     activity_types = {}
     rows = []
     for e in events:
@@ -119,7 +136,8 @@ VALUES (%s,%s,%s,%s,%s,%s,%s) ON CONFLICT (run_id, event_id) DO NOTHING
 
 def store(conn, history: History, source: str, run_id_hint: str | None = None) -> int:
     execution, rows = history_rows(history, run_id_hint)
-    with conn.cursor() as cur:
+    # A failed event write must roll back its summary too, and leave the connection usable.
+    with conn.transaction(), conn.cursor() as cur:
         cur.execute(UPSERT_EXECUTION, (*execution, source))
         cur.executemany(UPSERT_EVENT, rows)
     conn.commit()
@@ -153,7 +171,7 @@ def load_export(path: str, dsn: str) -> None:
                 runs += 1
             files += 1
             print(f"  {name}: {len(batch.items)} workflow histories")
-    print(f"export: {files} files, {runs} runs, {events} events upserted")
+    print(f"export: {files} files, {runs} runs, {events} events processed (duplicates ignored)")
 
 
 # ------------------------------------------------------------------ option D: visibility poll

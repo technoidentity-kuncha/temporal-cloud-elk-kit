@@ -5,6 +5,7 @@ target/
 __pycache__/
 *.pyc
 .venv/
+.venv-e2e/
 .idea/
 .vscode/
 .DS_Store

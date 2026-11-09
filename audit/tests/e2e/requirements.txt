@@ -1,0 +1,5 @@
+-r ../../../workers/python/requirements-test.txt
+# Only the optional S3 API is emulated. Temporal and Postgres are real services.
+boto3==1.43.126
+moto[s3]==5.2.5
+cryptography==50.0.2

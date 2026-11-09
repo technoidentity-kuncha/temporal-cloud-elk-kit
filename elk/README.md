@@ -100,7 +100,7 @@ Code references:
 
 - [TemporalConfiguration.java](../workers/spring-boot/src/main/java/example/orders/spring/TemporalConfiguration.java): profile loading, client options, activity bean, and archive interceptor registration.
 - [application.yml](../workers/spring-boot/src/main/resources/application.yml): workflow classes, activity bean, queue, slot limit, metrics port, and labels. Connection settings come from Temporal profiles/environment. Keep the starter activation target; `local` bypasses the connection customizer.
-- [Integration test](../workers/spring-boot/src/test/java/example/orders/spring/SpringWorkerTest.java): shared workflows, archiver starts, and Actuator metrics. Uses an archiver stand-in; does not prove database delivery.
+- [Spring tests](../workers/spring-boot/src/test/java/example/orders/spring/SpringWorkerTest.java) cover registration and Actuator metrics. [Archival E2E tests](../audit/tests/e2e/test_archival.py) verify the packaged Spring worker → Python archiver → real Postgres path.
 
 [Temporal Spring Boot documentation](https://docs.temporal.io/develop/java/integrations/spring-boot-integration).
 
