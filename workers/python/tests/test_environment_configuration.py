@@ -49,10 +49,22 @@ client_key_path="/does-not-exist/client.key"
 
     async def test_profile_completes_mutual_tls_handshake(self):
         cert, key = self.root / "cert.pem", self.root / "key.pem"
+        # Own the configuration: host defaults can mark the test leaf as a CA.
+        openssl_config = self.root / "openssl.cnf"
+        openssl_config.write_text("""[req]
+distinguished_name=dn
+x509_extensions=leaf
+[dn]
+[leaf]
+basicConstraints=critical,CA:FALSE
+keyUsage=critical,digitalSignature,keyEncipherment
+extendedKeyUsage=serverAuth,clientAuth
+subjectAltName=DNS:localhost,IP:127.0.0.1
+""")
         subprocess.run([
             "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1",
+            "-config", str(openssl_config),
             "-keyout", str(key), "-out", str(cert), "-subj", "/CN=localhost",
-            "-addext", "subjectAltName=DNS:localhost,IP:127.0.0.1",
         ], check=True, capture_output=True, timeout=20)
         with ThreadPoolExecutor(max_workers=2) as pool:
             server = grpc.server(pool)
