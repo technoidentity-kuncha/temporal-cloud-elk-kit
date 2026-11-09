@@ -1,0 +1,103 @@
+name: temporal-cloud-elk-kit
+
+# Local demo stack. Elasticsearch/Kibana security is disabled for convenience; enable it in production.
+
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.24
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: "-Xms1g -Xmx1g"
+    ports: ["127.0.0.1:9200:9200"]
+    volumes: ["esdata:/usr/share/elasticsearch/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health?wait_for_status=yellow"]
+      interval: 10s
+      retries: 30
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.19.24
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      TELEMETRY_OPTIN: "false"
+      TELEMETRY_ALLOWCHANGINGOPTINSTATUS: "false"
+    ports: ["127.0.0.1:5601:5601"]
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:5601/api/status | grep -q '\"level\":\"available\"'"]
+      interval: 10s
+      retries: 40
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.19.24
+    user: root
+    command: ["--strict.perms=false", "-e"]
+    environment:
+      TEMPORAL_METRICS_API_KEY: ${TEMPORAL_METRICS_API_KEY:?set in .env}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:?set in .env}
+      JAVA_METRICS_HOST: ${JAVA_METRICS_HOST:-java-worker:9464}
+      PYTHON_METRICS_HOST: ${PYTHON_METRICS_HOST:-python-worker:9465}
+    volumes:
+      - ./elk/metricbeat/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      elasticsearch: { condition: service_healthy }
+      kibana: { condition: service_healthy }
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: audit
+    ports: ["127.0.0.1:55432:5432"]
+    volumes:
+      - ./audit/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal -d audit"]
+      interval: 5s
+      retries: 20
+
+  java-worker:
+    build: ./workers/java
+    env_file: .env
+    environment:
+      PG_URL: jdbc:postgresql://postgres:5432/audit
+      TASK_QUEUE: orders-java
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["workers"]
+
+  python-worker:
+    build: { context: ., dockerfile: workers/python/Dockerfile }
+    env_file: .env
+    environment:
+      PG_DSN: postgresql://temporal:temporal@postgres:5432/audit
+      TASK_QUEUE: orders-python
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["workers"]
+
+  history-archiver:
+    build: { context: ., dockerfile: workers/python/Dockerfile }
+    env_file: .env
+    environment:
+      PG_DSN: postgresql://temporal:temporal@postgres:5432/audit
+    working_dir: /app/audit
+    command: ["python", "archiver_worker.py"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["workers"]
+
+  load:
+    build: { context: ., dockerfile: workers/python/Dockerfile }
+    env_file: .env
+    entrypoint: ["python", "load.py"]
+    command: ["--rate", "1", "--duration", "600"]
+    profiles: ["load"]
+
+volumes:
+  esdata:

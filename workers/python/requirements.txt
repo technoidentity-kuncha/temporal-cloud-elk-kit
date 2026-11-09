@@ -1,0 +1,4 @@
+temporalio==1.35.0
+psycopg[binary]==3.2.13
+# optional, only for history_loader.py export --path s3://...
+# boto3

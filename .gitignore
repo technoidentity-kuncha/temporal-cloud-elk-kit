@@ -1,0 +1,13 @@
+.env
+*.env
+!.env.example
+target/
+__pycache__/
+*.pyc
+.venv/
+.idea/
+.vscode/
+.DS_Store
+data/
+out/
+dependency-reduced-pom.xml

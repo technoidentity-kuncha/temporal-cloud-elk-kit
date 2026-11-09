@@ -1,0 +1,67 @@
+# Metricbeat pulls OpenMetrics/Prometheus-format metrics directly; no Prometheus server.
+# module: prometheus selects a collector inside Metricbeat, not a separate service.
+# Three scrape jobs, all landing in the metricbeat-* data stream:
+#   1. Temporal Cloud OpenMetrics endpoint (bearer API key, account-wide rate limit -> one scraper only)
+#   2. Java worker  /metrics (Micrometer exporter, Prometheus text format)
+#   3. Python worker /metrics (SDK exporter, Prometheus text format)
+
+metricbeat.modules:
+  # 1. Temporal Cloud OpenMetrics. Series are gauges: throughput metrics are rates,
+  #    backlog is a quantity, and latencies are precomputed percentiles in seconds.
+  - module: prometheus
+    metricsets: ["collector"]
+    period: 30s
+    timeout: 10s
+    hosts: ["https://metrics.temporal.io:443"]
+    metrics_path: /v1/metrics
+    headers:
+      Authorization: "Bearer ${TEMPORAL_METRICS_API_KEY}"
+    query:
+      namespaces: ["${TEMPORAL_NAMESPACE}"]
+      labels: ["temporal_activity_type"]
+    use_types: true
+    rate_counters: true
+    fields_under_root: true
+    fields:
+      source_kind: temporal_cloud
+
+  # 2 + 3. Prometheus-format SDK metrics. Metricbeat writes prometheus.* fields,
+  #    including counter increments and Elasticsearch histograms.
+  - module: prometheus
+    metricsets: ["collector"]
+    period: 10s
+    hosts: ["${JAVA_METRICS_HOST:java-worker:9464}"]
+    metrics_path: /metrics
+    use_types: true
+    rate_counters: true
+    fields_under_root: true
+    fields:
+      source_kind: temporal_sdk
+
+  - module: prometheus
+    metricsets: ["collector"]
+    period: 10s
+    hosts: ["${PYTHON_METRICS_HOST:python-worker:9465}"]
+    metrics_path: /metrics
+    use_types: true
+    rate_counters: true
+    fields_under_root: true
+    fields:
+      source_kind: temporal_sdk
+
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOSTS:http://elasticsearch:9200}"]
+  username: "${ELASTICSEARCH_USERNAME:}"
+  password: "${ELASTICSEARCH_PASSWORD:}"
+
+setup.template.enabled: true
+setup.ilm.enabled: true
+setup.dashboards.enabled: false
+setup.kibana.host: "${KIBANA_HOST:http://kibana:5601}"
+
+processors:
+  - drop_fields:
+      fields: ["agent.ephemeral_id", "agent.id", "ecs.version"]
+      ignore_missing: true
+
+logging.level: info

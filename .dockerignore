@@ -1,0 +1,8 @@
+.env
+*.env
+out/
+**/.venv/
+**/__pycache__/
+**/target/
+.git/
+elk/
