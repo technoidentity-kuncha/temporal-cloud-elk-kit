@@ -11,7 +11,7 @@ flowchart LR
 
 Metricbeat scrapes Cloud OpenMetrics and worker Prometheus-format endpoints directly. **No Prometheus server is deployed.** `module: prometheus` selects a collector inside Metricbeat; it does not start a separate service.
 
-For the local stack, follow [Local setup](../README.md#local-setup). All commands below run from the repository root.
+For the local stack, follow [Local setup](#local-setup). All commands below run from the repository root.
 
 ## Optional Elastic Temporal integration
 
@@ -76,3 +76,48 @@ Schedule-to-start measures task waiting time. Compare it with backlog age and av
 Cloud throughput metrics are rates; backlog count is a quantity. Combining Cloud p95 values does not produce a fleet or longer-window p95. Check SDK histogram bounds and whether samples are cumulative or interval-based before using percentiles for SLOs. Metricbeat's counter `.rate` is the increment between scrapes. Typed collection is marked beta by Elastic.
 
 [Cloud metrics](https://docs.temporal.io/cloud/metrics/openmetrics/metrics-reference) · [API limits](https://docs.temporal.io/cloud/metrics/openmetrics/api-reference) · [Metricbeat collector](https://www.elastic.co/docs/reference/beats/metricbeat/metricbeat-metricset-prometheus-collector)
+
+## Local setup
+
+Requires Git, Docker Compose v2, curl, and a non-production Temporal Cloud namespace. Containers provide Java 21, Python 3.13, Elastic 8.19.24, and Postgres 17.
+
+```bash
+git clone https://github.com/technoidentity-kuncha/temporal-cloud-elk-kit.git
+cd temporal-cloud-elk-kit
+cp .env.example .env
+chmod 600 .env
+```
+
+Set these values in [`.env`](../.env.example):
+
+- `TEMPORAL_ADDRESS`: regional gRPC endpoint from Temporal Cloud, including port 7233.
+- `TEMPORAL_NAMESPACE`: full namespace name.
+- `TEMPORAL_API_KEY`: namespace access for workers, execution listing, and history retrieval.
+- `TEMPORAL_METRICS_API_KEY`: key for a Metrics Read-Only service account.
+
+Start the [services](../docker-compose.yml):
+
+```bash
+docker compose --profile workers up -d --build
+docker compose --profile workers ps
+```
+
+Wait for healthy storage services and connected workers. [Import the dashboards](#import-dashboards), then run one minute of [sample traffic](../workers/python/load.py):
+
+```bash
+docker compose --profile load run --rm load --rate 1 --duration 60
+```
+
+The sample starts orders on both SDK queues and creates shipment children. Payment declines are simulated.
+
+- **Kibana:** [localhost:5601](http://localhost:5601). Allow several minutes for Cloud metrics.
+- **Postgres:** `localhost:55432`, database `audit`, user/password `temporal` / `temporal`.
+- **Worker metrics:** ports 9464 and 9465 inside Compose; not published on localhost.
+
+After workflows finish:
+
+```bash
+docker compose --profile workers --profile load down
+```
+
+This stops workers, not Cloud executions. Elastic authentication is disabled in the demo. Removing the Postgres container can delete its data; configure persistent storage before retaining records. The history sweep must be scheduled separately.
