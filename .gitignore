@@ -11,3 +11,6 @@ __pycache__/
 data/
 out/
 dependency-reduced-pom.xml
+# Local connection profiles and certificate material
+config/temporal.toml
+certs/

@@ -5,11 +5,11 @@
 
 import argparse
 import asyncio
-import os
 import time
 import uuid
 
 from temporalio.client import Client
+from temporalio.envconfig import ClientConfig
 
 
 async def main() -> None:
@@ -19,13 +19,9 @@ async def main() -> None:
     p.add_argument("--queues", default="orders-java,orders-python")
     a = p.parse_args()
 
-    api_key = os.environ.get("TEMPORAL_API_KEY")
-    client = await Client.connect(
-        os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
-        namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
-        api_key=api_key or None,
-        tls=bool(api_key),
-    )
+    config = ClientConfig.load_client_connect_config()
+    config.setdefault("target_host", "localhost:7233")
+    client = await Client.connect(**config)
     queues = a.queues.split(",")
     started, deadline = 0, time.monotonic() + a.duration
     while time.monotonic() < deadline:

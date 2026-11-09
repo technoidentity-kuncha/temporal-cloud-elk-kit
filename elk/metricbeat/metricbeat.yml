@@ -31,7 +31,7 @@ metricbeat.modules:
     metricsets: ["collector"]
     period: 10s
     hosts: ["${JAVA_METRICS_HOST:java-worker:9464}"]
-    metrics_path: /metrics
+    metrics_path: ${JAVA_METRICS_PATH:/metrics}
     use_types: true
     rate_counters: true
     fields_under_root: true

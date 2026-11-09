@@ -1,0 +1,3 @@
+-r requirements.txt
+# Local gRPC fixture for mutual-TLS tests; workers use the SDK's Rust transport.
+grpcio==1.78.0

@@ -1,4 +1,4 @@
-"""Python worker: Temporal Cloud via API key, Prometheus-format metrics on :METRICS_PORT/metrics,
+"""Python worker: Temporal Environment Configuration (API key or mTLS), Prometheus-format metrics on :METRICS_PORT/metrics,
 archive-on-close interceptor registered once for all workflows."""
 
 import asyncio
@@ -6,6 +6,7 @@ import logging
 import os
 
 from temporalio.client import Client
+from temporalio.envconfig import ClientConfig
 from temporalio.runtime import PrometheusConfig, Runtime, TelemetryConfig
 from temporalio.worker import Worker
 
@@ -41,14 +42,9 @@ async def main() -> None:
         )
     )
 
-    api_key = env("TEMPORAL_API_KEY", "")
-    client = await Client.connect(
-        env("TEMPORAL_ADDRESS", "localhost:7233"),
-        namespace=env("TEMPORAL_NAMESPACE", "default"),
-        api_key=api_key or None,
-        tls=bool(api_key),
-        runtime=runtime,
-    )
+    config = ClientConfig.load_client_connect_config()
+    config.setdefault("target_host", "localhost:7233")
+    client = await Client.connect(**config, runtime=runtime)
 
     task_queue = env("TASK_QUEUE", "orders-python")
 

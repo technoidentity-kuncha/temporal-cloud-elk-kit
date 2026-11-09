@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: orders-worker-spring
+  temporal:
+    connection:
+      # Activates the starter. TemporalConfiguration resolves the actual target/auth from EnvConfig.
+      target: 127.0.0.1:7233
+    start-workers: true
+    workers:
+      - task-queue: ${TASK_QUEUE:orders-java}
+        workflow-classes:
+          - example.orders.OrderWorkflowImpl
+          - example.orders.ShipmentWorkflowImpl
+        activity-beans:
+          - orderActivities
+        capacity:
+          max-concurrent-activity-executors: ${MAX_ACTIVITY_SLOTS:20}
+server:
+  port: ${METRICS_PORT:9464}
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus
+  metrics:
+    tags:
+      sdk: java
+      service: ${SERVICE_NAME:orders-worker-spring}

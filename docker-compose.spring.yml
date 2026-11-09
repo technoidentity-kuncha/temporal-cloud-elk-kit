@@ -1,0 +1,9 @@
+# Replace the plain Java worker; queues, Python workers, and history collection are unchanged.
+services:
+  java-worker:
+    build:
+      context: .
+      dockerfile: workers/spring-boot/Dockerfile
+  metricbeat:
+    environment:
+      JAVA_METRICS_PATH: /actuator/prometheus

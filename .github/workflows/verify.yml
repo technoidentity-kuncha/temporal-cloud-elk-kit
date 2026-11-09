@@ -21,8 +21,8 @@ jobs:
           distribution: temurin
           java-version: '21'
           cache: maven
-          cache-dependency-path: workers/java/pom.xml
-      - run: mvn -B -ntp -f workers/java/pom.xml clean verify
+          cache-dependency-path: 'workers/**/pom.xml'
+      - run: mvn -B -ntp -f workers/pom.xml clean verify
 
   python:
     name: Python 3.13 and Temporal Schedule
@@ -34,11 +34,11 @@ jobs:
         with:
           python-version: '3.13'
           cache: pip
-          cache-dependency-path: workers/python/requirements.txt
+          cache-dependency-path: 'workers/python/requirements*.txt'
       - uses: temporalio/setup-temporal@1059a504f87e7fa2f385e3fa40d1aa7e62f1c6ca # v0
         with:
           version: '1.5.1'
-      - run: python -m pip install -r workers/python/requirements.txt
+      - run: python -m pip install -r workers/python/requirements-test.txt
       - name: Verify local Temporal is available
         run: temporal --version
       - run: python -m unittest discover -s audit/tests -v
@@ -61,3 +61,4 @@ jobs:
         run: |
           cp .env.example .env
           docker compose --profile workers --profile sweep --profile load config --quiet
+          docker compose -f docker-compose.yml -f docker-compose.spring.yml -f docker-compose.auth.yml --profile workers --profile sweep --profile load config --quiet

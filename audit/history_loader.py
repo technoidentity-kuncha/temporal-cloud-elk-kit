@@ -27,6 +27,7 @@ from google.protobuf.json_format import MessageToDict
 from temporalio.api.export.v1 import WorkflowExecutions
 from temporalio.api.history.v1 import History
 from temporalio.client import Client
+from temporalio.envconfig import ClientConfig
 
 CLOSE_STATUS = {
     "WORKFLOW_EXECUTION_COMPLETED": "COMPLETED",
@@ -157,13 +158,9 @@ def load_export(path: str, dsn: str) -> None:
 
 # ------------------------------------------------------------------ option D: visibility poll
 async def connect() -> Client:
-    api_key = os.environ.get("TEMPORAL_API_KEY")
-    return await Client.connect(
-        os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
-        namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
-        api_key=api_key or None,
-        tls=bool(api_key),
-    )
+    config = ClientConfig.load_client_connect_config()
+    config.setdefault("target_host", "localhost:7233")
+    return await Client.connect(**config)
 
 
 async def poll_once(client: Client, conn, since: datetime, overlap: timedelta) -> datetime:

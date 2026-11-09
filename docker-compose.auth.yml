@@ -1,0 +1,18 @@
+# Optional profile/certificate mounts. Copy config/temporal.example.toml to
+# config/temporal.toml and put local certificate files in certs/ before use.
+x-temporal-auth: &temporal-auth
+  volumes:
+    - ./config/temporal.toml:/etc/temporal/temporal.toml:ro
+    - ./certs:/run/temporal-certs:ro
+
+services:
+  java-worker:
+    <<: *temporal-auth
+  python-worker:
+    <<: *temporal-auth
+  history-archiver:
+    <<: *temporal-auth
+  history-sweep:
+    <<: *temporal-auth
+  load:
+    <<: *temporal-auth

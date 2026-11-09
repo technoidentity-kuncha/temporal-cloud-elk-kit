@@ -1,0 +1,22 @@
+# Select with TEMPORAL_PROFILE. Environment variables override profile fields.
+[profile.local]
+address = "localhost:7233"
+namespace = "default"
+
+[profile.cloud-api-key]
+address = "<regional-endpoint>:7233"
+namespace = "<namespace>.<account>"
+# Supply TEMPORAL_API_KEY via the environment/secret manager.
+[profile.cloud-api-key.tls]
+disabled = false
+
+[profile.cloud-mtls]
+address = "<namespace-endpoint>:7233"
+namespace = "<namespace>.<account>"
+[profile.cloud-mtls.tls]
+disabled = false
+# Use absolute paths visible to the process/container.
+client_cert_path = "/run/temporal-certs/client.pem"
+client_key_path = "/run/temporal-certs/client.key"
+# For a private server CA only; Temporal Cloud uses the system trust store.
+# server_ca_cert_path = "/run/temporal-certs/server-ca.pem"

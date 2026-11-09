@@ -5,19 +5,16 @@ import asyncio
 import os
 
 from temporalio.client import Client
+from temporalio.envconfig import ClientConfig
 from temporalio.worker import Worker
 
 from archiver import TASK_QUEUE, ArchiveActivities, HistoryArchiverWorkflow
 
 
 async def main() -> None:
-    api_key = os.environ.get("TEMPORAL_API_KEY")
-    client = await Client.connect(
-        os.environ.get("TEMPORAL_ADDRESS", "localhost:7233"),
-        namespace=os.environ.get("TEMPORAL_NAMESPACE", "default"),
-        api_key=api_key or None,
-        tls=bool(api_key),
-    )
+    config = ClientConfig.load_client_connect_config()
+    config.setdefault("target_host", "localhost:7233")
+    client = await Client.connect(**config)
     dsn = os.environ.get("PG_DSN", "postgresql://temporal:temporal@localhost:55432/audit")
     acts = ArchiveActivities(client, dsn)
     worker = Worker(client, task_queue=TASK_QUEUE, workflows=[HistoryArchiverWorkflow], activities=[acts.archive_history])

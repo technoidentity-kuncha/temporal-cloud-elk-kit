@@ -30,10 +30,10 @@ flowchart LR
 2. Close a test workflow and inspect its exported history. Validate the [importer](history_loader.py) against a bounded prefix using S3 read/list permissions and decrypt access where required. Resolve the sample limitations before production ingestion.
 3. For continuous ingestion, build S3 `ObjectCreated` → SQS standard queue → consumer. Commit rows before acknowledging messages; add retries, a dead-letter queue, and object reconciliation. [AWS notification setup](https://docs.aws.amazon.com/AmazonS3/latest/userguide/ways-to-add-notification-config-to-bucket.html).
 
-Experimental batch import into a disposable evaluation database, with `PG_DSN` and AWS credentials:
+For experimental batch import, apply the [schema](schema.sql) to a disposable evaluation database and set `PG_DSN` and AWS credentials. This importer reads S3 objects; it does not use Temporal API keys or mTLS:
 
 ```bash
-python -m pip install boto3
+python -m pip install -r workers/python/requirements.txt boto3
 python audit/history_loader.py export \
   --path 's3://<bucket>/temporal-workflow-history/export/<namespace>/<year>/<month>/<day>/'
 ```
@@ -56,19 +56,19 @@ The interceptor starts an archiver child before parent closure. The child surviv
 
 ### Set it up
 
-1. Deploy [archiver_worker.py](archiver_worker.py) on `history-archiver` with namespace credentials and `PG_DSN`.
-2. Register the [Java interceptor](../workers/java/src/main/java/example/orders/audit/ArchiveOnCloseInterceptor.java) or [Python interceptor](../workers/python/orders/archive_interceptor.py) on every relevant worker, alongside existing interceptors. Registration examples: [Java](../workers/java/src/main/java/example/orders/WorkerMain.java), [Python](../workers/python/worker.py). Both use the same Python archiver.
+1. Install the [Python dependencies](../workers/python/requirements.txt), apply the [schema](schema.sql), and deploy [archiver_worker.py](archiver_worker.py) on `history-archiver` with `PG_DSN` and the shared [Temporal connection configuration](../elk/README.md#connection-configuration). API keys and mTLS are alternatives for E/D; neither is an Elastic credential.
+2. Register the [Java interceptor](../workers/java/src/main/java/example/orders/audit/ArchiveOnCloseInterceptor.java) or [Python interceptor](../workers/python/orders/archive_interceptor.py) on every relevant worker, alongside existing interceptors. Registration examples: [Java](../workers/java/src/main/java/example/orders/WorkerMain.java), [Spring Boot](../workers/spring-boot/src/main/java/example/orders/spring/TemporalConfiguration.java), [Python](../workers/python/worker.py). All use the same Python archiver.
 3. Enable the [hourly sweep](#3-temporal-schedule--sweep-workflow--postgres-d). The close hook alone is insufficient.
 
 ```bash
 python audit/archiver_worker.py
 ```
 
-Implementation: [archive activity and child workflow](archiver.py).
+Implementation: [archive activity and child workflow](archiver.py). The archive-on-close pattern is repository code. Official SDK references: interceptors ([Java](https://docs.temporal.io/develop/java/workers/interceptors), [Python](https://docs.temporal.io/develop/python/workers/interceptors)) and child-workflow lifecycle/`ABANDON` ([Java](https://docs.temporal.io/develop/java/workflows/child-workflows), [Python](https://docs.temporal.io/develop/python/workflows/child-workflows)).
 
 ### Cons
 
-- **Workflow impact:** adds a child execution and archive activity. The parent waits for child-start confirmation. Measure close latency and preserve replay/version markers during rollout and rollback.
+- **Workflow impact:** adds a child execution and archive activity. The parent waits for child-start confirmation. Measure close latency and preserve replay/version markers during rollout and rollback ([Java patching](https://docs.temporal.io/develop/java/workflows/versioning), [Python patching](https://docs.temporal.io/develop/python/workflows/versioning)).
 - **Coverage:** termination, execution timeout, cancellation, or start failures can bypass the hook. Retain the sweep.
 - **Operations:** run the archiver and sweep workers. Archiving retries for up to seven days, but recovery must finish before retention expires. Sweeps also reread histories already archived.
 
@@ -78,7 +78,7 @@ Implementation: [archive activity and child workflow](archiver.py).
 
 ### Code and setup
 
-[history_loader.py](history_loader.py) contains the sweep: `load_poll()` reads the checkpoint; `poll_once()` lists closed runs, fetches histories by actual run ID, and writes Postgres.
+[history_loader.py](history_loader.py) contains the sweep: `load_poll()` reads the checkpoint; `poll_once()` lists closed runs through [Visibility](https://docs.temporal.io/visibility), fetches histories by actual run ID, and writes Postgres.
 
 ```mermaid
 flowchart LR
@@ -87,9 +87,9 @@ flowchart LR
     activity --> loader["One loader pass"] --> db["Postgres + checkpoint"]
 ```
 
-The [Schedule adapter](sweep_schedule.py) starts the [workflow](sweep_workflow.py). Its [Activity](sweep_activity.py) runs the existing loader with retries, heartbeats, and cancellation cleanup. Credentials stay in the worker environment.
+The [Schedule adapter](sweep_schedule.py) starts the [workflow](sweep_workflow.py). Its [Activity](sweep_activity.py) runs the existing loader with retries, heartbeats, and cancellation cleanup. Connection credentials stay in the worker environment or mounted profile/certificate files.
 
-1. Deploy with the [Python dependencies](../workers/python/requirements.txt), [schema](schema.sql), and `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY`, and `PG_DSN`. Scripts do not read `.env`.
+1. Deploy with the [Python dependencies](../workers/python/requirements.txt), [schema](schema.sql), [connection configuration](../elk/README.md#connection-configuration), and `PG_DSN`. Scripts do not read `.env`.
 2. Start the worker, then create the Schedule once. Registration needs Schedule permissions; existing IDs are not overwritten.
 3. Keep one Schedule per namespace/database pair. `SKIP` prevents overlapping runs from that Schedule. Pause it and wait for active collection to finish before manual backfills.
 
@@ -101,7 +101,7 @@ python audit/sweep_schedule.py worker
 python audit/sweep_schedule.py create-schedule
 ```
 
-Alternatively, with Compose:
+With Compose, keep the `COMPOSE_FILE` selection in `.env` from the [ELK setup](../elk/README.md#local-setup), so profile/certificate mounts also apply to the sweep:
 
 ```bash
 docker compose --profile sweep up -d --build history-sweep

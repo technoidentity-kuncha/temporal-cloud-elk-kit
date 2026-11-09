@@ -38,6 +38,7 @@ services:
       TEMPORAL_METRICS_API_KEY: ${TEMPORAL_METRICS_API_KEY:?set in .env}
       TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:?set in .env}
       JAVA_METRICS_HOST: ${JAVA_METRICS_HOST:-java-worker:9464}
+      JAVA_METRICS_PATH: ${JAVA_METRICS_PATH:-/metrics}
       PYTHON_METRICS_HOST: ${PYTHON_METRICS_HOST:-python-worker:9465}
     volumes:
       - ./elk/metricbeat/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml:ro

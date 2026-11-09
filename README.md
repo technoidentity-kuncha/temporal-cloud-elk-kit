@@ -1,14 +1,12 @@
 # Temporal Cloud metrics and history
 
-Java and Python examples for Elastic observability and workflow-history archival.
+Temporal Cloud metrics show service health; SDK metrics show worker capacity and execution behavior. Workflow histories need a separate path for retention and SQL queries. This repository provides Java, Spring Boot, and Python examples for collecting both into Elastic and Postgres, with S3 export as the recommended history archive.
 
 ## Guides
 
-- **[ELK observability →](elk/README.md)** — Cloud and SDK metrics, Metricbeat collection, Kibana dashboards, and the optional Elastic OpenTelemetry integration.
-- **[Audit and workflow history →](audit/README.md)** — S3 export, archive-on-close, and Temporal-scheduled sweeps; recommendations, setup, tradeoffs, and code references.
+- **[ELK observability →](elk/README.md)** — connection configuration, API-key/mTLS authentication, optional Spring Boot worker, Metricbeat, and Kibana dashboards. No Prometheus server required.
+- **[Audit and workflow history →](audit/README.md)** — S3 export, archive-on-close, scheduled sweeps, and tradeoffs. Uses the same Temporal connection configuration.
 
-To run the example stack, see [local setup](elk/README.md#local-setup).
+Start with the [example stack](elk/README.md#local-setup). These are reference implementations; review the [ingestion limits](audit/README.md#sample-limits-and-validation) before adoption. Critical business outcomes belong in the application's database for immediate querying.
 
-Reference examples, not a production deployment. See [audit implementation status](audit/README.md#recommendation) before adopting the ingestion code.
-
-[Handover release v0.1.0](https://github.com/technoidentity-kuncha/temporal-cloud-elk-kit/releases/tag/v0.1.0) · [Verification checks](.github/workflows/verify.yml) · [MIT license](LICENSE).
+[Verification checks](.github/workflows/verify.yml) · [MIT license](LICENSE).

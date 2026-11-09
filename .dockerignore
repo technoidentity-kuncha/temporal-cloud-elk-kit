@@ -6,3 +6,5 @@ out/
 **/target/
 .git/
 elk/
+config/temporal.toml
+certs/
