@@ -14,6 +14,7 @@ Reference implementations and setup guidance for senior engineers working with T
 
 - **[ELK observability →](elk/README.md)** — configuration, workers, metrics, and dashboards.
 - **[Audit and workflow history →](audit/README.md)** — retention approaches, ingestion, and implementation limits.
+- **[S3 archive viewer →](s3-archive/README.md)** — view workflows past Cloud retention from History Export in a patched Temporal UI.
 
 Run the [example stack](elk/README.md#local-setup). These are reference implementations; review the [ingestion limits](audit/README.md#sample-limits-and-validation) before adoption. Critical business outcomes belong in the application's database for immediate querying.
 
