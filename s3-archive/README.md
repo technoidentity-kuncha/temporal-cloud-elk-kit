@@ -112,7 +112,7 @@ No other upstream files change. To upgrade, bump `UPSTREAM_COMMIT` and re-apply 
 
 ## Verified
 
-Test export: 2 files, 22 runs (19 plain, 3 encrypted).
+Test export: 3 files, 44 runs (35 plain, 9 encrypted).
 
 | Check | Result |
 |---|---|
@@ -121,12 +121,13 @@ Test export: 2 files, 22 runs (19 plain, 3 encrypted).
 | Workflow IDs with `/` (child workflows) | Listed separately from the parent; open correctly |
 | Encrypted run with codec server up / down | Decoded JSON / ciphertext |
 | UI with no Temporal server behind it | S3 Archive pages load; stock pages do not (need a server) |
-| Schedule trigger | Read `TemporalScheduledStartTime` and checked the previous hours |
+| Schedule trigger | Read `TemporalScheduledStartTime`, checked the previous 6 hours, converted the new file (22 runs) |
+| Signal, terminate, cancel, first run of a Continue-As-New chain | Status and run ID match Cloud; signal event present |
 | One unreadable history in a batch | Other runs in the file still written; error recorded |
 | Event table: expand a row, click event ID / task queue, unknown workflow ID | Details shown; stays on the archive page; empty-state message |
 | `docker compose` stack (codec server, converter worker, UI) | Converter reads and writes S3 from the container; UI on :8080 shows plain and encrypted runs |
 
-**Not covered yet:** signal, terminate, cancel, timeout, Continue-As-New and reset runs (not yet delivered by the test export); KMS codec; auth-enabled UI.
+**Not covered yet:** timed-out runs, the second run of a Continue-As-New chain and reset runs (not yet delivered by the test export); KMS codec; auth-enabled UI.
 
 ## Limits
 
