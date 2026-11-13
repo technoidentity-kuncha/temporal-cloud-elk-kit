@@ -1,143 +1,220 @@
-# S3 archive viewer for Temporal Cloud
+# Workflow Archive Viewer for Temporal Cloud
 
-Look up workflows that are past Temporal Cloud retention, by workflow ID, in a Temporal UI. Source: Cloud **Workflow History Export** to S3. Encrypted (codec) and plain payloads both display.
+Temporal Cloud deletes closed workflow executions once they reach the namespace [retention period](https://docs.temporal.io/evaluate/cloud/limits) (1 to 90 days, default 30). The Workflow Archive Viewer keeps them viewable: a developer enters a workflow ID and opens any of its executions in the Temporal event history view, with encrypted payloads decoded.
+
+The source is Temporal Cloud [Workflow History Export](https://docs.temporal.io/cloud/export), which copies closed executions to S3. No Temporal server or database is added.
+
+## 1. Architecture
+
+Consider either trigger: a Temporal Schedule or an S3 ObjectCreated event that invokes Lambda to start the workflow. The Schedule is implemented in this kit; the Lambda integration would need to be added.
 
 ```mermaid
 flowchart LR
   subgraph Cloud[Temporal Cloud]
-    NS[(Exported namespace)] -- History Export, hourly --> EXP
-    SCH[Schedule :45 every hour] --> WF[ExportConverterWorkflow]
+    NS[(Exported namespace)]
+    subgraph CNS[Converter namespace]
+      SCH["Option 1: Schedule, hourly"] --> WF[ExportConverterWorkflow]
+    end
   end
-  EXP[(S3 export/&lt;ns&gt;/yyyy/mm/dd/hh/00/&lt;uuid&gt;<br/>protobuf, many runs per file)]
-  WF -. tasks .-> W[converter worker<br/>Python]
+  subgraph AWS[Plymouth AWS]
+    EXP[("S3 export/<br/>hourly batch files")]
+    L["Option 2: Lambda"]
+    W[Converter worker]
+    ARC[("S3 archive/<br/>one object per execution")]
+    V["Workflow Archive Viewer"]
+    CS[Codec server]
+  end
+  NS -- "History Export" --> EXP
+  EXP -. "S3 ObjectCreated" .-> L
+  L -. "Start workflow" .-> WF
+  WF -. tasks .-> W
   W -- read --> EXP
-  W -- write, payloads unchanged --> ARC[(S3 archive/&lt;ns&gt;/&lt;workflowId&gt;/&lt;runId&gt;.json)]
-  UI[Temporal UI + S3 Archive patch] -- read --> ARC
-  Dev((Developer)) --> UI
-  UI -- encrypted payloads --> CS[Codec server<br/>Java remote data encoder]
+  W -- write --> ARC
+  V -- "read (server-side role)" --> ARC
+  Dev((Developer)) -- SSO --> V
+  Dev -. "browser: encrypted payloads" .-> CS
 ```
 
-## Request journey
+| Component | What it is | Folder |
+|---|---|---|
+| Converter | Temporal workflow, activities and Schedule that split each export batch into one S3 object per workflow execution. Based on Temporal's [Parquet export sample](https://github.com/temporalio/samples-python/tree/main/cloud_export_to_parquet). | [`converter/`](converter/) |
+| Workflow Archive Viewer | `temporalio/ui` at a pinned commit plus [`s3-archive.patch`](ui/s3-archive.patch). Adds the `/s3-archive` pages and three read-only API routes. Developers need no S3 access; the Workflow Archive Viewer reads S3 with its own role. | [`ui/`](ui/) |
+| Codec server | Java [remote data encoder](https://github.com/temporalio/sdk-java/tree/main/temporal-remote-data-encoder) with the samples-java [`CryptCodec`](https://github.com/temporalio/samples-java/tree/main/core/src/main/java/io/temporal/samples/encryptedpayloads). Demo only; replace with your codec (section 6). | [`codec-server/`](codec-server/) |
+
+## 2. Why a converter is needed
+
+| History Export writes | Consequence |
+|---|---|
+| Hourly batch files, many executions per file, as one protobuf message | One execution cannot be read without downloading and parsing the whole file |
+| `export/<ns>/<yyyy>/<mm>/<dd>/<hh>/00/<uuid>`: batch hour and a random name | Nothing in the key identifies the workflows inside |
+| An execution can arrive in any batch up to 24 h after it closes | A date-based lookup would scan a day of extra files |
+
+Temporal Cloud has no Archival API over exported data, and AWS has no service that reshapes protobuf in place. Converting each batch once, when it arrives, turns every lookup into a single S3 prefix list.
+
+| Design choice | Reason |
+|---|---|
+| One S3 object per execution, keyed by namespace and workflow ID | Lookup without a database or index |
+| Execution summary (type, status, start, close) as object metadata | The executions list loads without downloading histories |
+| A `_converted/` marker per export file | Progress lives in S3; re-runs skip finished files, a crash re-converts only unfinished ones |
+| Payloads copied unchanged | The converter holds no keys and data stays encrypted at rest; decoding happens only when viewed |
+| Converter as a Temporal workflow | Retries, execution history and backfill on the platform Plymouth already runs |
+
+## 3. Converter
+
+```mermaid
+flowchart TD
+  Start(["Schedule, Lambda adapter<br/>or convert_once.py"]) --> H["Hours to check<br/>Schedule: previous 6 UTC export hours<br/>Lambda adapter or convert_once.py: explicit hours"]
+  H --> L[["list_unconverted (per hour)"]]
+  L --> D1{"_converted/<br/>marker?"}
+  D1 -- yes --> Skip([Skip])
+  D1 -- no --> C[["convert_file (10 files in parallel)"]]
+  C --> D2{"History<br/>readable?"}
+  D2 -- yes --> Put["Write archive/&lt;ns&gt;/&lt;workflowId&gt;/&lt;runId&gt;.json<br/>with summary metadata"]
+  D2 -- no --> Q["Copy file to _quarantine/<br/>with .errors.txt"]
+  Put --> M["Write _converted/ marker"]
+  Q --> M
+```
+
+| Piece | Behavior | Code |
+|---|---|---|
+| Schedule | Cron `45 * * * *` (Cloud writes hour folder H at about H+1:15). 1-day catch-up window; a run is skipped while the previous one is running; 50-minute run timeout. | [`schedule.py`](converter/schedule.py) |
+| Workflow | Scheduled runs read the 6 hours before `TemporalScheduledStartTime`; direct starts can supply explicit hours. Returns hours, files, executions and quarantined files. | [`workflows.py`](converter/workflows.py) |
+| Activities | `list_unconverted` (2 min) and `convert_file` (15 min, heartbeat per execution). Retry from 5 s to 5 min, no attempt limit. | [`activities.py`](converter/activities.py) |
+| Parsing | No I/O. Run ID is `originalExecutionRunId`, or the new run ID for a reset. Status comes from the last event. | [`archive_format.py`](converter/archive_format.py) |
+| Worker | Task queue `s3-archive-converter`, 10 activity threads; serves every namespace that exports to the same bucket | [`worker.py`](converter/worker.py) |
+
+| Failure | Result |
+|---|---|
+| S3 error (throttling, network, access) | Retried until the run times out. The Schedule revisits recent files on its next run. A file that keeps failing holds up the files queued after it. |
+| One unreadable history | Only that execution is skipped; the file goes to `_quarantine/` with an `.errors.txt` |
+| Whole file unreadable | The file goes to `_quarantine/` |
+| Crash before the marker | The file is converted again; writes overwrite, as do duplicate deliveries from Cloud |
+| Worker down for more than 6 hours with the Schedule | Run `convert_once.py` for the missed hours |
+
+### Trigger options
+
+Both options are valid. Choose based on how quickly archives need to appear and which components your team wants to operate. Neither reduces Cloud History Export's delivery delay.
+
+#### Option 1: Temporal Schedule
+
+The included [Schedule](converter/schedule.py) starts the converter at :45 each hour and checks the previous six export hours.
+
+- **Pros:** no Lambda to deploy; revisiting recent hours recovers unprocessed files without relying on event delivery.
+- **Cons:** new files wait for the next scheduled run; S3 is listed even when no files arrive. Outages beyond the lookback window need a backfill.
+
+#### Option 2: S3 ObjectCreated → Lambda → Temporal Workflow
+
+Configure an [S3 notification to invoke Lambda](https://docs.aws.amazon.com/lambda/latest/dg/with-s3.html) when an export object arrives. Lambda reads the namespace and UTC export hour from its key, then calls [`start_workflow`](https://python.temporal.io/temporalio.client.Client.html#start_workflow) on `ExportConverterWorkflow` with `ConvertInput(namespace=..., hours=[...])` and the converter's task queue. Lambda returns after Temporal accepts the start; the converter worker performs the conversion.
+
+- **Pros:** starts conversion after an object arrives, without waiting for the hourly Schedule; avoids scans when there are no events.
+- **Cons:** adds a Lambda deployment, invocation permissions, Temporal credentials and connectivity, and monitoring for failed starts. Bursts can start overlapping scans of the same hour.
+
+The Lambda integration is not included. When adding it:
+
+- Filter notifications to `temporal-workflow-history/export/` so archive and marker writes do not trigger new conversions.
+- Handle [duplicate S3 notifications](https://docs.aws.amazon.com/AmazonS3/latest/userguide/EventNotifications.html) with stable workflow IDs derived from the bucket and object key, explicit workflow-ID reuse/conflict policies, and duplicate-start handling. Configure retries and a failure destination for unsuccessful starts.
+- The current workflow scans an entire export hour. Completion markers skip finished files but do not prevent concurrent scans; control concurrency. To process only the arriving object, extend the workflow input to accept an object key and reuse `convert_file`.
+
+Use the Schedule for simpler periodic collection, or Lambda when prompt conversion after export arrival justifies the extra AWS integration.
+
+## 4. Viewing a workflow execution
 
 ```mermaid
 sequenceDiagram
   actor Dev as Developer
-  participant UI as Temporal UI (browser)
-  participant US as UI server (Go)
+  participant UI as Workflow Archive Viewer (browser)
+  participant US as Workflow Archive Viewer (Go server)
   participant S3
   participant CS as Codec server
   Dev->>UI: /s3-archive · namespace + workflow ID
   UI->>US: GET /api/v1/s3-archive/namespaces/{ns}/workflows/{id}/runs
-  US->>S3: List archive/{ns}/{id}/ + object metadata
-  US-->>UI: runs (type, status, start, close)
-  Dev->>UI: open a run
+  US->>S3: list archive/{ns}/{id}/ + object metadata
+  US-->>UI: executions, newest first
+  Dev->>UI: open an execution
   UI->>US: GET …/runs/{runId}/history
-  US->>S3: Get archive/{ns}/{id}/{runId}.json
-  US-->>UI: event history
-  UI->>CS: POST /decode (binary/encrypted payloads only)
+  US->>S3: get archive/{ns}/{id}/{runId}.json
+  US-->>UI: events
+  UI->>CS: POST /decode (encrypted payloads only)
   CS-->>UI: decoded payloads
-  UI-->>Dev: standard event history view
 ```
 
-## Prerequisites
+```text
+temporal-workflow-history/export/<ns>/<yyyy>/<mm>/<dd>/<hh>/00/<file>   # written by Cloud; source of record
+archive/<ns>/<url-encoded workflowId>/<runId>.json                      # {"events": [...]}, payloads unchanged
+archive/_converted/<export key>.done                                    # one marker per converted file
+archive/_quarantine/<export key>[.errors.txt]                           # files with unreadable histories
+```
 
-| | |
+`archive/` is `ARCHIVE_PREFIX` in `ARCHIVE_BUCKET` (default: the export bucket). Workflow IDs are URL-encoded into one key segment, so `order-1/shipment` and `order-1` stay separate.
+
+## 5. Set up
+
+**Prerequisites**
+
+| Area | Requirement |
 |---|---|
-| Temporal Cloud | History Export to S3 enabled on the namespace to archive ([docs](https://docs.temporal.io/cloud/export)). A namespace + API key for the converter (its own namespace recommended). |
-| AWS | Credentials that can read the export prefix, and write and read `archive/` (local runs use `AWS_PROFILE`). |
-| Local | Docker with Compose. |
-
-## Run it
-
-```bash
-cp .env.example .env            # fill in namespace, API key, bucket, region, AWS profile
-docker compose up -d --build    # codec-server :8888, converter worker, UI :8080
-```
-
-Convert what is already in the bucket (hours are the UTC export folders), then create the hourly Schedule:
+| Temporal Cloud | History Export enabled on the namespace to archive. A separate converter namespace and API key, so the converter's own executions are not exported. |
+| AWS, converter | `s3:GetObject` on `temporal-workflow-history/export/<ns>/*`, `s3:PutObject` on `archive/*` |
+| AWS, viewer | `s3:GetObject` on `archive/*` |
+| AWS, both | `s3:ListBucket` limited to those prefixes (`s3:prefix` condition) |
+| Local | Docker with Compose |
 
 ```bash
+cp .env.example .env            # settings below
+docker compose up -d --build    # codec server :8888, converter worker, viewer :8080
+
+# Convert existing export folders (UTC hours)
 docker compose run --rm converter python convert_once.py 2026/11/12/15 2026/11/12/16
-docker compose run --rm converter python schedule.py create      # add --paused to create it paused
+
+# Option 1 only: create the hourly Schedule
+docker compose run --rm converter python schedule.py create     # --paused to create it paused
 ```
 
-Open <http://localhost:8080/s3-archive>, pick the namespace, enter a workflow ID, open a run.
+For Option 2, configure the Lambda integration described under [Trigger options](#trigger-options) instead of creating the Schedule. Keep the converter worker running with either option.
 
-`schedule.py trigger | pause | unpause | describe` manage the Schedule. Keep the worker running while the Schedule is active.
+Open <http://localhost:8080/s3-archive>, choose the namespace, enter a workflow ID and open an execution.
 
-## What runs where
+| `.env` setting | Meaning |
+|---|---|
+| `TEMPORAL_ADDRESS`, `TEMPORAL_NAMESPACE`, `TEMPORAL_API_KEY` | Converter namespace, where the worker and Schedule run |
+| `EXPORTED_NAMESPACE`, `EXPORT_BUCKET` | Namespace being archived and its export bucket |
+| `ARCHIVE_BUCKET`, `ARCHIVE_PREFIX` | Archive location (defaults: export bucket, `archive`); the Workflow Archive Viewer reads the same values |
+| `AWS_REGION` | AWS region for the bucket |
+| AWS credentials | Use your organization's approved authentication method, such as an IAM role, access keys, or a local profile. Configure access for both the converter and viewer; `AWS_PROFILE` is only needed when using a profile. |
 
-| Piece | Folder | Notes |
+The supplied Compose configuration mounts `~/.aws` for local use. For enterprise deployments, adapt the credential configuration for both services to match your AWS authentication process.
+
+## 6. Production changes
+
+| Area | In this kit | Change to |
 |---|---|---|
-| Converter workflow, activities, worker | [`converter/`](converter/) | Based on Temporal's [Parquet export sample](https://github.com/temporalio/samples-python/tree/main/cloud_export_to_parquet). Each run reads the export folders for the 6 hours before its scheduled time (`TemporalScheduledStartTime`), skips files with a `_converted/` marker, writes one JSON per run, then the marker. Unreadable histories are skipped individually; their file is copied to `archive/_quarantine/` with an `.errors.txt`. Scheduled runs time out after 50 min so a stuck run never blocks the next hour. |
-| Codec server | [`codec-server/`](codec-server/) | `RDEHttpServer` from [`temporal-remote-data-encoder`](https://github.com/temporalio/sdk-java/tree/main/temporal-remote-data-encoder) + samples-java [`CryptCodec`](https://github.com/temporalio/samples-java/tree/main/core/src/main/java/io/temporal/samples/encryptedpayloads). **Demo only**: CryptCodec's key travels in payload metadata. Swap in a KMS codec for real data; it must match the codec your workers use. |
-| Patched UI | [`ui/`](ui/) | `Dockerfile` fetches `temporalio/ui` at [`UPSTREAM_COMMIT`](ui/UPSTREAM_COMMIT), applies [`s3-archive.patch`](ui/s3-archive.patch), builds. |
+| Codec | Demo `CryptCodec`; its key travels in payload metadata | Your workers' codec (for example KMS): point `TEMPORAL_CODEC_ENDPOINT` in [`docker-compose.yml`](docker-compose.yml) at your codec server, or replace [`CryptCodec.java`](codec-server/src/main/java/codecserver/CryptCodec.java) |
+| Codec endpoint | `http://localhost:8888` | A private URL the developer's browser can reach. The server has no authentication and allows any origin. |
+| Workflow Archive Viewer login | Off | OIDC through the UI's `TEMPORAL_AUTH_*` settings |
+| AWS credentials | Mounted `~/.aws` | Your organization's approved AWS authentication method, such as an IAM role or access keys; both services use the default AWS credential chain |
+| Namespaces | One `EXPORTED_NAMESPACE` | Schedule option: create one Schedule per namespace. Lambda option: route each export event to the correct namespace and converter task queue. |
 
-S3 layout written by the converter:
+## 7. UI patch
 
-```
-archive/<namespace>/<url-encoded workflowId>/<runId>.json     # {"events":[...]}, payloads as exported
-                                                              # metadata: workflow-type, status, start-time, close-time
-archive/_converted/<export key>.done                          # one marker per converted export file
-archive/_quarantine/<export key>[.errors.txt]                 # files with unreadable histories (good runs still written)
-```
-
-## Changes to the stock Temporal UI
+[`ui/Dockerfile`](ui/Dockerfile) fetches `temporalio/ui` at [`UPSTREAM_COMMIT`](ui/UPSTREAM_COMMIT), applies the patch and builds. No other upstream file changes. To upgrade, update `UPSTREAM_COMMIT` and `UI_COMMIT` in the Dockerfile and re-apply the patch.
 
 ```mermaid
-flowchart TB
-  subgraph Browser[SvelteKit app]
-    L["(s3-archive)/+layout.ts<br/>loads /settings only"] --> P1["/s3-archive<br/>namespace + workflow ID → runs"]
-    L --> P2["/s3-archive/namespaces/[ns]/workflows/[wf]/[run]/history<br/>existing EventSummaryTable + toEventHistory (codec decode)"]
-    SVC[s3-archive-service.ts] --> P1 & P2
+flowchart LR
+  subgraph Web["SvelteKit app (new route group)"]
+    L["(s3-archive) layout<br/>loads /settings only"] --> P1[Search page]
+    L --> P2["History page<br/>EventSummaryTable + codec decode"]
   end
-  subgraph Go[UI server]
-    R["route/api.go: +3 GET routes"] --> H["api/s3archive.go<br/>list namespaces · list runs · get history"]
+  subgraph Go["Workflow Archive Viewer server (Go)"]
+    R["route/api.go: 3 routes"] --> H["api/s3archive.go"]
   end
-  SVC --> R
+  P1 & P2 --> R
   H --> S3[(S3 archive/)]
 ```
 
-| File | Change | Why |
-|---|---|---|
-| `server/server/api/s3archive.go` | **new** | Three read-only routes. Builds S3 keys server-side from validated namespace and run ID and the URL-encoded workflow ID; uses the same auth check as the Temporal API routes (`ValidateAuthHeaderExists`: verifies the JWT when OIDC is configured, otherwise only that the header is present). Config by env: `S3_ARCHIVE_BUCKET`, `S3_ARCHIVE_PREFIX`, `S3_ARCHIVE_REGION`. |
-| `server/server/route/api.go` | +3 lines | Registers the routes. |
-| `server/go.mod`, `go.sum` | deps | AWS SDK for Go v2 (`config`, `service/s3`). |
-| `src/routes/(s3-archive)/+layout.ts`, `+layout.svelte` | **new** | Own route group: the stock `(app)` layout waits on `/cluster-info`, which needs a Temporal server. This layout needs only `/settings`, so the UI runs with no Temporal server. |
-| `src/routes/(s3-archive)/s3-archive/+page.svelte` | **new** | Namespace + workflow ID search, runs table. |
-| `src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte` | **new** | Reuses `EventSummaryTable`; data goes through `toEventHistory`, so the configured codec endpoint decrypts payloads exactly as for live runs. Path params match upstream so event components render. Links into live-workflow pages (event ID, task queue) are disabled, since those pages need a Temporal server. |
-| `src/lib/services/s3-archive-service.ts` | **new** | Fetch helpers for the three routes. |
-
-No other upstream files change. To upgrade, bump `UPSTREAM_COMMIT` and re-apply the patch.
-
-## Verified
-
-Test export: 3 files, 44 runs (35 plain, 9 encrypted).
-
-| Check | Result |
+| File | Change |
 |---|---|
-| Converted history vs `temporal workflow show` (plain and encrypted run) | Same event IDs, types and result payloads |
-| Re-running the converter | 0 files, 0 runs (markers) |
-| Workflow IDs with `/` (child workflows) | Listed separately from the parent; open correctly |
-| Encrypted run with codec server up / down | Decoded JSON / ciphertext |
-| UI with no Temporal server behind it | S3 Archive pages load; stock pages do not (need a server) |
-| Schedule trigger | Read `TemporalScheduledStartTime`, checked the previous 6 hours, converted the new file (22 runs) |
-| Signal, terminate, cancel, first run of a Continue-As-New chain | Status and run ID match Cloud; signal event present |
-| One unreadable history in a batch | Other runs in the file still written; error recorded |
-| Event table: expand a row, click event ID / task queue, unknown workflow ID | Details shown; stays on the archive page; empty-state message |
-| `docker compose` stack (codec server, converter worker, UI) | Converter reads and writes S3 from the container; UI on :8080 shows plain and encrypted runs |
-
-**Not covered yet:** timed-out runs, the second run of a Continue-As-New chain and reset runs (not yet delivered by the test export); KMS codec; auth-enabled UI.
-
-## Limits
-
-- Lookup by workflow ID only; search-attribute filters need an index.
-- Cloud delivers a run up to 24 h after it closes, spread over several hourly files.
-- Archive-only UI: stock pages for live workflows need a Temporal connection (the UI server supports mTLS, not API keys).
-- Protect the UI with OIDC (`TEMPORAL_AUTH_*`) before exposing it; without auth, anyone who can reach it can read the archive.
-- The codec server has no auth and allows any origin (`RDEHttpServer` defaults); keep it on a private network or put it behind a proxy.
-- Closed runs from before export was enabled are not exported by Cloud; backfill them from the API while still in retention.
-
-## Recording
-
-<!-- RECORDING: add the screen recording of the end-to-end flow here -->
+| `server/server/api/s3archive.go` | New. Read-only routes: list namespaces, list executions, get history. Validates namespace and run ID, encodes the workflow ID as the converter does, applies the UI's auth check (JWT verified when OIDC is on). Configured by `S3_ARCHIVE_BUCKET`, `S3_ARCHIVE_PREFIX`, `S3_ARCHIVE_REGION`. |
+| `server/server/route/api.go` | Registers the routes ahead of the catch-all Temporal API route |
+| `server/go.mod`, `go.sum` | AWS SDK for Go v2 |
+| `src/routes/(s3-archive)/` | New route group whose layout loads only `/settings`, so no Temporal server is needed. The history page reuses `EventSummaryTable`, so codec decoding works as for live workflows, and blocks links to live-workflow pages. |
+| `src/lib/services/s3-archive-service.ts` | Fetch helpers for the routes |
