@@ -250,6 +250,7 @@ flowchart LR
 
 ## 8. Demo recording
 
-https://github.com/user-attachments/assets/d3398fc5-3133-4d35-9725-afca7eec7176
+https://github.com/user-attachments/assets/b9a4ee2c-1b95-4b87-8ac5-011b6df0683f
+
 
 End-to-end run, 1:41, no audio: History Export files in S3 → the converter workflow run → one object per workflow execution → the execution deleted from Temporal Cloud → found again in the Workflow Archive Viewer, with encrypted payloads decoded.
