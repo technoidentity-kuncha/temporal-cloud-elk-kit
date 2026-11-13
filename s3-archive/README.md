@@ -250,7 +250,6 @@ flowchart LR
 
 ## 8. Demo recording
 
-[![Workflow Archive Viewer demo](docs/workflow-archive-viewer-demo.png)](docs/workflow-archive-viewer-demo.mp4)
-<img width="960" height="750" alt="workflow-archive-viewer-demo" src="https://github.com/user-attachments/assets/d3398fc5-3133-4d35-9725-afca7eec7176" />
+https://github.com/user-attachments/assets/d3398fc5-3133-4d35-9725-afca7eec7176
 
 End-to-end run, 1:41, no audio: History Export files in S3 → the converter workflow run → one object per workflow execution → the execution deleted from Temporal Cloud → found again in the Workflow Archive Viewer, with encrypted payloads decoded.
