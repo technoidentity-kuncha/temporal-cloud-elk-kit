@@ -16,7 +16,7 @@ flowchart LR
       SCH["Option 1: Schedule, hourly"] --> WF[ExportConverterWorkflow]
     end
   end
-  subgraph AWS[Plymouth AWS]
+  subgraph AWS[Your AWS account]
     EXP[("S3 export/<br/>hourly batch files")]
     L["Option 2: Lambda"]
     W[Converter worker]
@@ -57,7 +57,7 @@ Temporal Cloud has no Archival API over exported data, and AWS has no service th
 | Execution summary (type, status, start, close) as object metadata | The executions list loads without downloading histories |
 | A `_converted/` marker per export file | Progress lives in S3; re-runs skip finished files, a crash re-converts only unfinished ones |
 | Payloads copied unchanged | The converter holds no keys and data stays encrypted at rest; decoding happens only when viewed |
-| Converter as a Temporal workflow | Retries, execution history and backfill on the platform Plymouth already runs |
+| Converter as a Temporal workflow | Retries, execution history and backfill on the platform you already run |
 
 ## 3. Trigger options
 
@@ -247,3 +247,9 @@ flowchart LR
 | `server/go.mod`, `go.sum` | AWS SDK for Go v2 |
 | `src/routes/(s3-archive)/` | New route group whose layout loads only `/settings`, so no Temporal server is needed. The history page reuses `EventSummaryTable`, so codec decoding works as for live workflows, and blocks links to live-workflow pages. |
 | `src/lib/services/s3-archive-service.ts` | Fetch helpers for the routes |
+
+## 8. Demo recording
+
+[![Workflow Archive Viewer demo](docs/workflow-archive-viewer-demo.png)](docs/workflow-archive-viewer-demo.mp4)
+
+End-to-end run, 1:41, no audio: History Export files in S3 → the converter workflow run → one object per workflow execution → the execution deleted from Temporal Cloud → found again in the Workflow Archive Viewer, with encrypted payloads decoded.
