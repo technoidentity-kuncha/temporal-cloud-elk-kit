@@ -1,0 +1,635 @@
+diff --git a/server/go.mod b/server/go.mod
+index 83c93b9..ab03b60 100644
+--- a/server/go.mod
++++ b/server/go.mod
+@@ -24,6 +24,24 @@ require (
+ require (
+ 	dario.cat/mergo v1.0.1 // indirect
+ 	github.com/Masterminds/goutils v1.1.1 // indirect
++	github.com/aws/aws-sdk-go-v2 v1.48.0 // indirect
++	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.27 // indirect
++	github.com/aws/aws-sdk-go-v2/config v1.33.18 // indirect
++	github.com/aws/aws-sdk-go-v2/credentials v1.21.0 // indirect
++	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.9 // indirect
++	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.12 // indirect
++	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.12 // indirect
++	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12 // indirect
++	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.25 // indirect
++	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.13 // indirect
++	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.12 // indirect
++	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.12 // indirect
++	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10 // indirect
++	github.com/aws/aws-sdk-go-v2/service/signin v1.13.1 // indirect
++	github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 // indirect
++	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 // indirect
++	github.com/aws/aws-sdk-go-v2/service/sts v1.52.0 // indirect
++	github.com/aws/smithy-go v1.28.9 // indirect
+ 	github.com/cpuguy83/go-md2man/v2 v2.0.1 // indirect
+ 	github.com/davecgh/go-spew v1.1.1 // indirect
+ 	github.com/go-jose/go-jose/v4 v4.1.6 // indirect
+diff --git a/server/go.sum b/server/go.sum
+index 9975c0c..4827d71 100644
+--- a/server/go.sum
++++ b/server/go.sum
+@@ -7,6 +7,42 @@ github.com/Masterminds/semver/v3 v3.3.0 h1:B8LGeaivUe71a5qox1ICM/JLl0NqZSW5CHyL+
+ github.com/Masterminds/semver/v3 v3.3.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
+ github.com/Masterminds/sprig/v3 v3.3.0 h1:mQh0Yrg1XPo6vjYXgtf5OtijNAKJRNcTdOOGZe3tPhs=
+ github.com/Masterminds/sprig/v3 v3.3.0/go.mod h1:Zy1iXRYNqNLUolqCpL4uhk6SHUMAOSCzdgBfDb35Lz0=
++github.com/aws/aws-sdk-go-v2 v1.48.0 h1:tFU7EJVm7MfyaXLsXdYTZ0Vd6vwt9OljCyqq0gqk0Mc=
++github.com/aws/aws-sdk-go-v2 v1.48.0/go.mod h1:oeKU5p+TQBnpeLmU42WZLWvzv+ORLn+74n4QVLnm/Z0=
++github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.27 h1:3dMP9eEmHVosFN1QiD24IJBKVY8m6iUfVYXqRCT118Q=
++github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.27/go.mod h1:KH4PKcqtjy1m0656eqQV2v53xE04ddJzuNloEKqlHkI=
++github.com/aws/aws-sdk-go-v2/config v1.33.18 h1:WC0C4jM/tewXG8DWXnoxXnusJPZTryPazqk2k/zgd2s=
++github.com/aws/aws-sdk-go-v2/config v1.33.18/go.mod h1:0kRpFgsnD59mC2bbbyOTVpaZ9RnXW/pFkqlfiwbgZaU=
++github.com/aws/aws-sdk-go-v2/credentials v1.21.0 h1:OViwhqeipkQzSHuO2eQDUCdLrI6r3nzGxFUyM8GqnCs=
++github.com/aws/aws-sdk-go-v2/credentials v1.21.0/go.mod h1:OffaVQod3fyZzhZJyPtw11WpHPF1uIHADc+/MYlXmbA=
++github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.9 h1:oH1E0tjN0g+ZRusbX1dsuat4FJ0z05l8hWaycSbDuNc=
++github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.9/go.mod h1:3ZaQGigIoaS45x9HgnLZ4sP475Fs7QoxU3IsZX/J3h4=
++github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.12 h1:W0yUUzKBA8SofGQ0yZafEUuZq9UxfvijRgdc6vcRQPA=
++github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.12/go.mod h1:xwKv6vwBNdpPFOxEm/ld4IODZK2s/1ksHvdBqLfH6Gs=
++github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.12 h1:lqSi8qvAnKC1vfosImdmOsuiJLr/jdybZX5299beB6Q=
++github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.12/go.mod h1:rqPQE2vqkW9YHx5+Gp55sx1wsTM4xtGQLl+TKMjxxrs=
++github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12 h1:uvX2yaL+aMjkmnrLPPlR/zwjoKFRMoNhhJfeGjfk6qc=
++github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.12/go.mod h1:dicT+2eNhHHqGkxHO7LoXw3QghIUGuzgdmFqaSTopgI=
++github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.25 h1:rKwkY3Z+fvt2W0msjdNs6uNewPmXzPayQ961oyuWhes=
++github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.25/go.mod h1:dBuAadQKd1F4Q4ZOg8gnFmuSHMRE40Pe3IfFwbtC4lE=
++github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.13 h1:U5HZ8FpTr6tyvulf1nT11Nw4KG1CAsXkuQGdUrIjZ/E=
++github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.13/go.mod h1:dUfvCU1NaE+b3vqNENDiJncUQW7Djl5pmgUlcjesVqk=
++github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.12 h1:wzAqMZ2O4+ij9HQqIrk+P9PBGacE0wOTuWB7Mo97//I=
++github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.12/go.mod h1:/0TfyruByHsOlphzP26xDTRe2DKD0J1I1Uyy2TyP8EI=
++github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.12 h1:H0IaQayT3TLiGIHiNnleQZTbndDlx7LGZ0NWZ5mDwjA=
++github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.12/go.mod h1:YuJJNxaOjnknLIrscBmkLhIpnmg9LzHd25sQRKUboGU=
++github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10 h1:WBJb2VxRzzKnuN94YWqZPiu5a5zc3IleFqgZnmVCyvU=
++github.com/aws/aws-sdk-go-v2/service/s3 v1.114.10/go.mod h1:8NhAIBVYkVHq0hIbbzujdoou0VkKwMdG+De9e5oX6qI=
++github.com/aws/aws-sdk-go-v2/service/signin v1.13.1 h1:ssrDA6AKfXEc3h0Pf4EI4vQ8sN5Zd136SrU9Tjr0XPc=
++github.com/aws/aws-sdk-go-v2/service/signin v1.13.1/go.mod h1:LdwHjKqPE9VCC7sTlWcOAizZx3ZJYjmfwC/EW2tIIAE=
++github.com/aws/aws-sdk-go-v2/service/sso v1.39.5 h1:ANAoa+qt3/9kXnvQVgUyxcTzhzZf4DqaBS+M2DQrELU=
++github.com/aws/aws-sdk-go-v2/service/sso v1.39.5/go.mod h1:vsMi+SSR7xGQXtV430LVi49qbv/R+U+upHHSp1W/+QI=
++github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5 h1:uIOBLMhef4N16WguadoHKuBy9etdz+RKTeqzchXErAI=
++github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.5/go.mod h1:NwWmkFLtsTVyXQpbzPOlYLwEoANkdCFjJRtrNcbg/vY=
++github.com/aws/aws-sdk-go-v2/service/sts v1.52.0 h1:IaBLmJWiIEtKkjXMgMbYGZk7WKXbYA8148wCMCXq9hU=
++github.com/aws/aws-sdk-go-v2/service/sts v1.52.0/go.mod h1:MG6N8U9+lY4LqchrlHPqCOSr7hyxw70XU0Et2YR3eNA=
++github.com/aws/smithy-go v1.28.9 h1:zkZ058OpNX0iGTK24b+ZUEQSMc11CBA6oO7xtKZfzkY=
++github.com/aws/smithy-go v1.28.9/go.mod h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=
+ github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
+ github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
+ github.com/coreos/go-oidc/v3 v3.11.0 h1:Ia3MxdwpSw702YW0xgfmP1GVCMA9aEFWu12XUZ3/OtI=
+diff --git a/server/server/api/s3archive.go b/server/server/api/s3archive.go
+new file mode 100644
+index 0000000..472d79a
+--- /dev/null
++++ b/server/server/api/s3archive.go
+@@ -0,0 +1,223 @@
++package api
++
++import (
++	"context"
++	"errors"
++	"fmt"
++	"io"
++	"net/http"
++	"net/url"
++	"os"
++	"regexp"
++	"sort"
++	"strings"
++	"sync"
++
++	"github.com/aws/aws-sdk-go-v2/aws"
++	awsconfig "github.com/aws/aws-sdk-go-v2/config"
++	"github.com/aws/aws-sdk-go-v2/service/s3"
++	"github.com/aws/aws-sdk-go-v2/service/s3/types"
++	"github.com/labstack/echo/v4"
++
++	"github.com/temporalio/ui-server/v2/server/auth"
++	"github.com/temporalio/ui-server/v2/server/config"
++)
++
++const (
++	S3ArchiveNamespacesUrl = "/s3-archive/namespaces"
++	S3ArchiveRunsUrl       = "/s3-archive/namespaces/:namespace/workflows/:workflow/runs"
++	S3ArchiveHistoryUrl    = "/s3-archive/namespaces/:namespace/workflows/:workflow/runs/:runid/history"
++)
++
++var (
++	s3ArchiveNamespacePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
++	s3ArchiveRunIDPattern     = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
++)
++
++type S3ArchiveRun struct {
++	WorkflowID   string `json:"workflowId"`
++	RunID        string `json:"runId"`
++	WorkflowType string `json:"workflowType"`
++	Status       string `json:"status"`
++	StartTime    string `json:"startTime"`
++	CloseTime    string `json:"closeTime"`
++}
++
++type s3Archive struct {
++	bucket string
++	prefix string
++	client *s3.Client
++}
++
++var (
++	s3ArchiveOnce     sync.Once
++	s3ArchiveInstance *s3Archive
++	s3ArchiveErr      error
++)
++
++func getS3Archive(ctx context.Context) (*s3Archive, error) {
++	s3ArchiveOnce.Do(func() {
++		bucket := os.Getenv("S3_ARCHIVE_BUCKET")
++		if bucket == "" {
++			s3ArchiveErr = errors.New("S3 archive is not configured (S3_ARCHIVE_BUCKET)")
++			return
++		}
++		prefix := strings.Trim(os.Getenv("S3_ARCHIVE_PREFIX"), "/")
++		if prefix == "" {
++			prefix = "archive"
++		}
++		var opts []func(*awsconfig.LoadOptions) error
++		if region := os.Getenv("S3_ARCHIVE_REGION"); region != "" {
++			opts = append(opts, awsconfig.WithRegion(region))
++		}
++		cfg, err := awsconfig.LoadDefaultConfig(ctx, opts...)
++		if err != nil {
++			s3ArchiveErr = err
++			return
++		}
++		s3ArchiveInstance = &s3Archive{bucket: bucket, prefix: prefix, client: s3.NewFromConfig(cfg)}
++	})
++	return s3ArchiveInstance, s3ArchiveErr
++}
++
++// encodeS3ArchiveSegment percent-encodes everything except RFC 3986 unreserved characters,
++// matching the converter's Python urllib.parse.quote(value, safe="").
++func encodeS3ArchiveSegment(value string) string {
++	var b strings.Builder
++	for _, c := range []byte(value) {
++		if (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' || c == '~' {
++			b.WriteByte(c)
++		} else {
++			fmt.Fprintf(&b, "%%%02X", c)
++		}
++	}
++	return b.String()
++}
++
++func s3ArchiveParams(c echo.Context) (namespace, workflowID string, err error) {
++	namespace = c.Param("namespace")
++	workflowID, err = url.QueryUnescape(c.Param("workflow"))
++	if err != nil || workflowID == "" || !s3ArchiveNamespacePattern.MatchString(namespace) {
++		return "", "", echo.NewHTTPError(http.StatusBadRequest, "invalid namespace or workflow ID")
++	}
++	return namespace, workflowID, nil
++}
++
++func s3ArchivePrepare(c echo.Context, cfgProvider *config.ConfigProviderWithRefresh) (*s3Archive, error) {
++	if err := auth.ValidateAuthHeaderExists(c, cfgProvider); err != nil {
++		return nil, err
++	}
++	archive, err := getS3Archive(c.Request().Context())
++	if err != nil {
++		return nil, echo.NewHTTPError(http.StatusServiceUnavailable, err.Error())
++	}
++	return archive, nil
++}
++
++func S3ArchiveNamespacesHandler(cfgProvider *config.ConfigProviderWithRefresh) echo.HandlerFunc {
++	return func(c echo.Context) error {
++		archive, err := s3ArchivePrepare(c, cfgProvider)
++		if err != nil {
++			return err
++		}
++		out, err := archive.client.ListObjectsV2(c.Request().Context(), &s3.ListObjectsV2Input{
++			Bucket:    aws.String(archive.bucket),
++			Prefix:    aws.String(archive.prefix + "/"),
++			Delimiter: aws.String("/"),
++		})
++		if err != nil {
++			return echo.NewHTTPError(http.StatusBadGateway, err.Error())
++		}
++		namespaces := []string{}
++		for _, p := range out.CommonPrefixes {
++			name := strings.TrimSuffix(strings.TrimPrefix(aws.ToString(p.Prefix), archive.prefix+"/"), "/")
++			if !strings.HasPrefix(name, "_") {
++				namespaces = append(namespaces, name)
++			}
++		}
++		return c.JSON(http.StatusOK, map[string][]string{"namespaces": namespaces})
++	}
++}
++
++func S3ArchiveRunsHandler(cfgProvider *config.ConfigProviderWithRefresh) echo.HandlerFunc {
++	return func(c echo.Context) error {
++		archive, err := s3ArchivePrepare(c, cfgProvider)
++		if err != nil {
++			return err
++		}
++		namespace, workflowID, err := s3ArchiveParams(c)
++		if err != nil {
++			return err
++		}
++		ctx := c.Request().Context()
++		prefix := fmt.Sprintf("%s/%s/%s/", archive.prefix, namespace, encodeS3ArchiveSegment(workflowID))
++		var objects []types.Object
++		pager := s3.NewListObjectsV2Paginator(archive.client, &s3.ListObjectsV2Input{
++			Bucket:    aws.String(archive.bucket),
++			Prefix:    aws.String(prefix),
++			Delimiter: aws.String("/"),
++		})
++		for pager.HasMorePages() {
++			page, err := pager.NextPage(ctx)
++			if err != nil {
++				return echo.NewHTTPError(http.StatusBadGateway, err.Error())
++			}
++			objects = append(objects, page.Contents...)
++		}
++
++		runs := make([]S3ArchiveRun, len(objects))
++		var wg sync.WaitGroup
++		sem := make(chan struct{}, 8)
++		for i, obj := range objects {
++			wg.Add(1)
++			go func(i int, key string) {
++				defer wg.Done()
++				sem <- struct{}{}
++				defer func() { <-sem }()
++				run := S3ArchiveRun{WorkflowID: workflowID, RunID: strings.TrimSuffix(strings.TrimPrefix(key, prefix), ".json")}
++				head, err := archive.client.HeadObject(ctx, &s3.HeadObjectInput{Bucket: aws.String(archive.bucket), Key: aws.String(key)})
++				if err == nil {
++					run.WorkflowType = head.Metadata["workflow-type"]
++					run.Status = head.Metadata["status"]
++					run.StartTime = head.Metadata["start-time"]
++					run.CloseTime = head.Metadata["close-time"]
++				}
++				runs[i] = run
++			}(i, aws.ToString(obj.Key))
++		}
++		wg.Wait()
++		sort.Slice(runs, func(a, b int) bool { return runs[a].CloseTime > runs[b].CloseTime })
++		return c.JSON(http.StatusOK, map[string][]S3ArchiveRun{"runs": runs})
++	}
++}
++
++func S3ArchiveHistoryHandler(cfgProvider *config.ConfigProviderWithRefresh) echo.HandlerFunc {
++	return func(c echo.Context) error {
++		archive, err := s3ArchivePrepare(c, cfgProvider)
++		if err != nil {
++			return err
++		}
++		namespace, workflowID, err := s3ArchiveParams(c)
++		if err != nil {
++			return err
++		}
++		runID := c.Param("runid")
++		if !s3ArchiveRunIDPattern.MatchString(runID) {
++			return echo.NewHTTPError(http.StatusBadRequest, "invalid run ID")
++		}
++		key := fmt.Sprintf("%s/%s/%s/%s.json", archive.prefix, namespace, encodeS3ArchiveSegment(workflowID), runID)
++		obj, err := archive.client.GetObject(c.Request().Context(), &s3.GetObjectInput{Bucket: aws.String(archive.bucket), Key: aws.String(key)})
++		if err != nil {
++			var missing *types.NoSuchKey
++			if errors.As(err, &missing) {
++				return echo.NewHTTPError(http.StatusNotFound, "archived run not found")
++			}
++			return echo.NewHTTPError(http.StatusBadGateway, err.Error())
++		}
++		defer obj.Body.Close()
++		c.Response().Header().Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
++		c.Response().WriteHeader(http.StatusOK)
++		_, err = io.Copy(c.Response().Writer, obj.Body)
++		return err
++	}
++}
+diff --git a/server/server/route/api.go b/server/server/route/api.go
+index beee566..e6c3bec 100644
+--- a/server/server/route/api.go
++++ b/server/server/route/api.go
+@@ -83,6 +83,10 @@ func SetAPIRoutes(e *echo.Echo, cfgProvider *config.ConfigProviderWithRefresh, a
+ 		writeControlMiddleware,
+ 	)
+ 
++	route.GET(api.S3ArchiveNamespacesUrl, api.S3ArchiveNamespacesHandler(cfgProvider))
++	route.GET(api.S3ArchiveRunsUrl, api.S3ArchiveRunsHandler(cfgProvider))
++	route.GET(api.S3ArchiveHistoryUrl, api.S3ArchiveHistoryHandler(cfgProvider))
++
+ 	route.Match([]string{"GET", "POST", "PUT", "PATCH", "DELETE"}, "/*", api.TemporalAPIHandler(cfgProvider, apiMiddleware, conn), writeControlMiddleware)
+ 
+ 	// New api paths with removed prefix. Need to figure out how to handle when ui and ui server are on same host
+diff --git a/src/lib/services/s3-archive-service.ts b/src/lib/services/s3-archive-service.ts
+new file mode 100644
+index 0000000..d9bb313
+--- /dev/null
++++ b/src/lib/services/s3-archive-service.ts
+@@ -0,0 +1,54 @@
++import type { HistoryEvent } from '$lib/types/events';
++import { requestFromAPI } from '$lib/utilities/request-from-api';
++import { base } from '$lib/utilities/route-for-api';
++
++export type S3ArchiveRun = {
++  workflowId: string;
++  runId: string;
++  workflowType: string;
++  status: string;
++  startTime: string;
++  closeTime: string;
++};
++
++const route = (path: string): string => `${base()}/api/v1/s3-archive/${path}`;
++
++const workflowPath = (namespace: string, workflowId: string): string =>
++  `namespaces/${encodeURIComponent(namespace)}/workflows/${encodeURIComponent(workflowId)}`;
++
++export const fetchS3ArchiveNamespaces = async (
++  request = fetch,
++): Promise<string[]> => {
++  const response = await requestFromAPI<{ namespaces: string[] }>(
++    route('namespaces'),
++    { request },
++  );
++  return response?.namespaces ?? [];
++};
++
++export const fetchS3ArchiveRuns = async (
++  namespace: string,
++  workflowId: string,
++  request = fetch,
++): Promise<S3ArchiveRun[]> => {
++  const response = await requestFromAPI<{ runs: S3ArchiveRun[] }>(
++    route(`${workflowPath(namespace, workflowId)}/runs`),
++    { request },
++  );
++  return response?.runs ?? [];
++};
++
++export const fetchS3ArchiveHistory = async (
++  namespace: string,
++  workflowId: string,
++  runId: string,
++  request = fetch,
++): Promise<HistoryEvent[]> => {
++  const response = await requestFromAPI<{ events: HistoryEvent[] }>(
++    route(
++      `${workflowPath(namespace, workflowId)}/runs/${encodeURIComponent(runId)}/history`,
++    ),
++    { request },
++  );
++  return response?.events ?? [];
++};
+diff --git a/src/routes/(s3-archive)/+layout.svelte b/src/routes/(s3-archive)/+layout.svelte
+new file mode 100644
+index 0000000..8d4091c
+--- /dev/null
++++ b/src/routes/(s3-archive)/+layout.svelte
+@@ -0,0 +1,23 @@
++<script lang="ts">
++  import type { Snippet } from 'svelte';
++
++  import { base } from '$app/paths';
++
++  let { children }: { children: Snippet } = $props();
++</script>
++
++<div class="surface-background flex min-h-screen flex-col text-primary">
++  <header
++    class="border-subtle flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b px-6 py-3"
++  >
++    <a href="{base}/s3-archive" class="whitespace-nowrap text-lg font-medium">
++      Workflow Archive Viewer
++    </a>
++    <span class="text-sm text-secondary">
++      Read-only · workflow executions exported from Temporal Cloud
++    </span>
++  </header>
++  <main class="flex flex-1 flex-col gap-4 p-6">
++    {@render children()}
++  </main>
++</div>
+diff --git a/src/routes/(s3-archive)/+layout.ts b/src/routes/(s3-archive)/+layout.ts
+new file mode 100644
+index 0000000..aea9691
+--- /dev/null
++++ b/src/routes/(s3-archive)/+layout.ts
+@@ -0,0 +1,30 @@
++import { redirect } from '@sveltejs/kit';
++
++import type { LayoutData, LayoutLoad } from './$types';
++
++import { fetchSettings } from '$lib/services/settings-service';
++import { clearAuthUser, getAuthUser } from '$lib/stores/auth-user';
++import type { Settings } from '$lib/types/global';
++import { isAuthorized } from '$lib/utilities/is-authorized';
++import { routeForAuthenticationRedirect } from '$lib/utilities/route-for';
++
++import '../../app.css';
++
++export const load: LayoutLoad = async function ({
++  fetch,
++  url,
++}): Promise<LayoutData> {
++  const settings: Settings = await fetchSettings(fetch);
++
++  if (!settings.auth.enabled) {
++    clearAuthUser();
++  }
++
++  const user = getAuthUser();
++
++  if (!isAuthorized(settings, user)) {
++    redirect(302, routeForAuthenticationRedirect(settings, url));
++  }
++
++  return { user, settings };
++};
+diff --git a/src/routes/(s3-archive)/s3-archive/+page.svelte b/src/routes/(s3-archive)/s3-archive/+page.svelte
+new file mode 100644
+index 0000000..5991aa3
+--- /dev/null
++++ b/src/routes/(s3-archive)/s3-archive/+page.svelte
+@@ -0,0 +1,117 @@
++<script lang="ts">
++  import { goto } from '$app/navigation';
++  import { base } from '$app/paths';
++  import { page } from '$app/state';
++
++  import PageTitle from '$lib/components/page-title.svelte';
++  import Button from '$lib/holocene/button.svelte';
++  import Input from '$lib/holocene/input/input.svelte';
++  import {
++    fetchS3ArchiveNamespaces,
++    fetchS3ArchiveRuns,
++  } from '$lib/services/s3-archive-service';
++
++  const namespaceParam = $derived(page.url.searchParams.get('namespace') ?? '');
++  const workflowParam = $derived(page.url.searchParams.get('workflowId') ?? '');
++
++  let namespace = $state(page.url.searchParams.get('namespace') ?? '');
++  let workflowId = $state(page.url.searchParams.get('workflowId') ?? '');
++
++  const namespaces = fetchS3ArchiveNamespaces().then((list) => {
++    if (!namespace && list.length) namespace = list[0];
++    return list;
++  });
++
++  const runs = $derived(
++    namespaceParam && workflowParam
++      ? fetchS3ArchiveRuns(namespaceParam, workflowParam)
++      : Promise.resolve(null),
++  );
++
++  const search = (event: SubmitEvent) => {
++    event.preventDefault();
++    const params = new URLSearchParams({
++      namespace,
++      workflowId: workflowId.trim(),
++    });
++    goto(`${base}/s3-archive?${params}`);
++  };
++
++  const historyHref = (runId: string): string =>
++    `${base}/s3-archive/namespaces/${encodeURIComponent(namespaceParam)}/workflows/${encodeURIComponent(workflowParam)}/${encodeURIComponent(runId)}/history`;
++
++  const formatTime = (value: string): string =>
++    value ? new Date(value).toLocaleString() : '';
++</script>
++
++<PageTitle title="Workflow Archive Viewer" url={page.url.href} />
++
++<h1 class="text-2xl font-medium">Archived workflow executions</h1>
++
++<form class="flex flex-wrap items-end gap-3" onsubmit={search}>
++  <label class="flex flex-col gap-1 text-sm">
++    Namespace
++    <select
++      class="border-subtle h-10 min-w-64 rounded border bg-transparent px-2 text-primary"
++      bind:value={namespace}
++      data-testid="s3-archive-namespace"
++    >
++      {#await namespaces then list}
++        {#each list as option (option)}
++          <option value={option}>{option}</option>
++        {/each}
++      {/await}
++    </select>
++  </label>
++  <div class="min-w-96 flex-1">
++    <Input
++      id="s3-archive-workflow-id"
++      label="Workflow ID"
++      placeholder="e.g. claim-123"
++      bind:value={workflowId}
++      required
++    />
++  </div>
++  <Button type="submit" data-testid="s3-archive-search">Search</Button>
++</form>
++
++{#await runs}
++  <p class="text-secondary">Loading executions…</p>
++{:then list}
++  {#if list && list.length === 0}
++    <p class="text-secondary">
++      No archived executions for <code>{workflowParam}</code> in {namespaceParam}.
++    </p>
++  {:else if list}
++    <table class="w-full text-left text-sm" data-testid="s3-archive-runs">
++      <thead class="border-subtle border-b">
++        <tr>
++          <th class="py-2">Status</th>
++          <th>Run ID</th>
++          <th>Type</th>
++          <th>Start</th>
++          <th>Close</th>
++        </tr>
++      </thead>
++      <tbody>
++        {#each list as run (run.runId)}
++          <tr class="border-subtle border-b">
++            <td class="py-2">{run.status}</td>
++            <td>
++              <a class="text-brand underline" href={historyHref(run.runId)}
++                >{run.runId}</a
++              >
++            </td>
++            <td>{run.workflowType}</td>
++            <td>{formatTime(run.startTime)}</td>
++            <td>{formatTime(run.closeTime)}</td>
++          </tr>
++        {/each}
++      </tbody>
++    </table>
++  {/if}
++{:catch error}
++  <p class="text-danger">
++    Could not load executions: {error?.statusText ?? error}
++  </p>
++{/await}
+diff --git a/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte b/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte
+new file mode 100644
+index 0000000..3fa807a
+--- /dev/null
++++ b/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte
+@@ -0,0 +1,61 @@
++<script lang="ts">
++  import { base } from '$app/paths';
++  import { page } from '$app/state';
++
++  import EventSummaryTable from '$lib/components/event/event-summary-table.svelte';
++  import PageTitle from '$lib/components/page-title.svelte';
++  import SkeletonWorkflow from '$lib/holocene/skeleton/workflow.svelte';
++  import { groupEvents } from '$lib/models/event-groups';
++  import { toEventHistory } from '$lib/models/event-history';
++  import { fetchS3ArchiveHistory } from '$lib/services/s3-archive-service';
++
++  const namespace = $derived(page.params.namespace ?? '');
++  const workflowId = $derived(page.params.workflow ?? '');
++  const runId = $derived(page.params.run ?? '');
++
++  const history = $derived(
++    fetchS3ArchiveHistory(namespace, workflowId, runId).then((events) =>
++      toEventHistory(events),
++    ),
++  );
++
++  const backHref = $derived(
++    `${base}/s3-archive?${new URLSearchParams({ namespace, workflowId })}`,
++  );
++
++  const blockLiveLinks = (event: MouseEvent) => {
++    const link = (event.target as HTMLElement | null)?.closest('a');
++    if (link?.getAttribute('href')?.startsWith(`${base}/namespaces/`)) {
++      event.preventDefault();
++      event.stopPropagation();
++    }
++  };
++</script>
++
++<PageTitle
++  title={`Workflow Archive Viewer | ${workflowId}`}
++  url={page.url.href}
++/>
++
++<a class="text-sm text-brand underline" href={backHref}>← Back to executions</a>
++<div class="flex flex-col gap-1">
++  <h1 class="text-2xl font-medium" data-testid="s3-archive-workflow-id">
++    {workflowId}
++  </h1>
++  <p class="text-sm text-secondary">
++    {namespace} · run ID {runId}
++  </p>
++</div>
++
++{#await history}
++  <SkeletonWorkflow />
++{:then events}
++  {@const groups = groupEvents(events, 'ascending', [], [])}
++  <div onclickcapture={blockLiveLinks} role="presentation">
++    <EventSummaryTable items={events} {groups} />
++  </div>
++{:catch error}
++  <p class="text-danger">
++    Could not load history: {error?.statusText ?? error}
++  </p>
++{/await}

@@ -1,0 +1,26 @@
+name: s3-archive
+
+services:
+  codec-server:
+    build: ./codec-server
+    ports: ["8888:8888"]
+
+  converter:
+    build: ./converter
+    env_file: .env
+    volumes:
+      - ${HOME}/.aws:/root/.aws # writable: AWS SSO token refresh updates the cache
+
+  ui:
+    build: ./ui
+    ports: ["8080:8080"]
+    environment:
+      TEMPORAL_ADDRESS: 127.0.0.1:7999 # archive-only: no Temporal server behind this UI
+      TEMPORAL_CODEC_ENDPOINT: http://localhost:8888
+      S3_ARCHIVE_BUCKET: ${ARCHIVE_BUCKET:-${EXPORT_BUCKET}}
+      S3_ARCHIVE_PREFIX: ${ARCHIVE_PREFIX:-archive}
+      S3_ARCHIVE_REGION: ${AWS_REGION}
+      AWS_REGION: ${AWS_REGION}
+      AWS_PROFILE: ${AWS_PROFILE:-}
+    volumes:
+      - ${HOME}/.aws:/home/temporal/.aws # writable: AWS SSO token refresh updates the cache
