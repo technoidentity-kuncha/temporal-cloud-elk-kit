@@ -380,7 +380,7 @@ index 0000000..d9bb313
 +};
 diff --git a/src/routes/(s3-archive)/+layout.svelte b/src/routes/(s3-archive)/+layout.svelte
 new file mode 100644
-index 0000000..410cfc9
+index 0000000..8d4091c
 --- /dev/null
 +++ b/src/routes/(s3-archive)/+layout.svelte
 @@ -0,0 +1,23 @@
@@ -394,13 +394,13 @@ index 0000000..410cfc9
 +
 +<div class="surface-background flex min-h-screen flex-col text-primary">
 +  <header
-+    class="border-subtle flex items-center justify-between border-b px-6 py-3"
++    class="border-subtle flex flex-wrap items-center justify-between gap-x-6 gap-y-1 border-b px-6 py-3"
 +  >
-+    <a href="{base}/s3-archive" class="text-lg font-medium">
-+      Temporal · S3 Archive
++    <a href="{base}/s3-archive" class="whitespace-nowrap text-lg font-medium">
++      Workflow Archive Viewer
 +    </a>
 +    <span class="text-sm text-secondary">
-+      Read-only view of workflows exported to S3
++      Read-only · workflow executions exported from Temporal Cloud
 +    </span>
 +  </header>
 +  <main class="flex flex-1 flex-col gap-4 p-6">
@@ -445,10 +445,10 @@ index 0000000..aea9691
 +};
 diff --git a/src/routes/(s3-archive)/s3-archive/+page.svelte b/src/routes/(s3-archive)/s3-archive/+page.svelte
 new file mode 100644
-index 0000000..3b63b30
+index 0000000..5991aa3
 --- /dev/null
 +++ b/src/routes/(s3-archive)/s3-archive/+page.svelte
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,117 @@
 +<script lang="ts">
 +  import { goto } from '$app/navigation';
 +  import { base } from '$app/paths';
@@ -495,15 +495,15 @@ index 0000000..3b63b30
 +    value ? new Date(value).toLocaleString() : '';
 +</script>
 +
-+<PageTitle title="S3 Archive" url={page.url.href} />
++<PageTitle title="Workflow Archive Viewer" url={page.url.href} />
 +
-+<h1 class="text-2xl font-medium">Archived workflows</h1>
++<h1 class="text-2xl font-medium">Archived workflow executions</h1>
 +
 +<form class="flex flex-wrap items-end gap-3" onsubmit={search}>
 +  <label class="flex flex-col gap-1 text-sm">
 +    Namespace
 +    <select
-+      class="surface-primary border-subtle h-10 min-w-64 rounded border px-2"
++      class="border-subtle h-10 min-w-64 rounded border bg-transparent px-2 text-primary"
 +      bind:value={namespace}
 +      data-testid="s3-archive-namespace"
 +    >
@@ -527,11 +527,11 @@ index 0000000..3b63b30
 +</form>
 +
 +{#await runs}
-+  <p class="text-secondary">Loading runs…</p>
++  <p class="text-secondary">Loading executions…</p>
 +{:then list}
 +  {#if list && list.length === 0}
 +    <p class="text-secondary">
-+      No archived runs for <code>{workflowParam}</code> in {namespaceParam}.
++      No archived executions for <code>{workflowParam}</code> in {namespaceParam}.
 +    </p>
 +  {:else if list}
 +    <table class="w-full text-left text-sm" data-testid="s3-archive-runs">
@@ -562,14 +562,16 @@ index 0000000..3b63b30
 +    </table>
 +  {/if}
 +{:catch error}
-+  <p class="text-danger">Could not load runs: {error?.statusText ?? error}</p>
++  <p class="text-danger">
++    Could not load executions: {error?.statusText ?? error}
++  </p>
 +{/await}
 diff --git a/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte b/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte
 new file mode 100644
-index 0000000..3d9dc3a
+index 0000000..3fa807a
 --- /dev/null
 +++ b/src/routes/(s3-archive)/s3-archive/namespaces/[namespace]/workflows/[workflow]/[run]/history/+page.svelte
-@@ -0,0 +1,58 @@
+@@ -0,0 +1,61 @@
 +<script lang="ts">
 +  import { base } from '$app/paths';
 +  import { page } from '$app/state';
@@ -604,15 +606,18 @@ index 0000000..3d9dc3a
 +  };
 +</script>
 +
-+<PageTitle title={`S3 Archive | ${workflowId}`} url={page.url.href} />
++<PageTitle
++  title={`Workflow Archive Viewer | ${workflowId}`}
++  url={page.url.href}
++/>
 +
-+<a class="text-sm text-brand underline" href={backHref}>← Back to runs</a>
++<a class="text-sm text-brand underline" href={backHref}>← Back to executions</a>
 +<div class="flex flex-col gap-1">
 +  <h1 class="text-2xl font-medium" data-testid="s3-archive-workflow-id">
 +    {workflowId}
 +  </h1>
 +  <p class="text-sm text-secondary">
-+    {namespace} · run {runId}
++    {namespace} · run ID {runId}
 +  </p>
 +</div>
 +
