@@ -11,6 +11,7 @@ class ConvertInput:
     hours: list[str] = field(default_factory=list)  # 'YYYY/MM/DD/HH' (UTC); empty = derive from the schedule time
     lag_hours: int = 1  # Cloud writes folder H at about H+1:15, so a run at H+1:45 reads H
     lookback_hours: int = 6  # re-check earlier folders so a failed hour is retried; markers make this cheap
+    export_keys: list[str] = field(default_factory=list)  # convert exactly these export objects (S3 event start)
 
 
 @dataclass

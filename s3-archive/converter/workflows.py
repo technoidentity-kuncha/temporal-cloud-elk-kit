@@ -17,8 +17,8 @@ PARALLEL_FILES = 10
 class ExportConverterWorkflow:
     @workflow.run
     async def run(self, inp: ConvertInput) -> ConvertResult:
-        hours = inp.hours or self._scheduled_hours(inp)
-        keys: list[str] = []
+        hours = [] if inp.export_keys else inp.hours or self._scheduled_hours(inp)
+        keys: list[str] = list(inp.export_keys)
         for hour in hours:
             keys += await workflow.execute_activity(
                 "list_unconverted", HourInput(inp.namespace, hour), result_type=list[str],

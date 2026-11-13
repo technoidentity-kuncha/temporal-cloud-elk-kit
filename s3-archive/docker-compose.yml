@@ -9,7 +9,7 @@ services:
     build: ./converter
     env_file: .env
     volumes:
-      - ${HOME}/.aws:/root/.aws:ro
+      - ${HOME}/.aws:/root/.aws # writable: AWS SSO token refresh updates the cache
 
   ui:
     build: ./ui
@@ -23,4 +23,4 @@ services:
       AWS_REGION: ${AWS_REGION}
       AWS_PROFILE: ${AWS_PROFILE:-}
     volumes:
-      - ${HOME}/.aws:/home/temporal/.aws:ro
+      - ${HOME}/.aws:/home/temporal/.aws # writable: AWS SSO token refresh updates the cache
